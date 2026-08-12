@@ -1,0 +1,2 @@
+[console_scripts]
+residual-void = residual_void.__main__:main

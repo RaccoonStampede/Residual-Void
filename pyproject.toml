@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "residual-void"
+version = "0.1.0"
+description = "Residual-Void coherence engine runtime"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+  "pyyaml>=6.0",
+  "numpy>=1.24",
+  "scipy>=1.10",
+]
+
+[project.scripts]
+residual-void = "residual_void.__main__:main"
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.0",
+]
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+packages = ["residual_void"]
+py-modules = ["config_loader"]

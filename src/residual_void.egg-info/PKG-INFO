@@ -1,3 +1,17 @@
+Metadata-Version: 2.4
+Name: residual-void
+Version: 0.1.0
+Summary: Residual-Void coherence engine runtime
+Requires-Python: >=3.11
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: pyyaml>=6.0
+Requires-Dist: numpy>=1.24
+Requires-Dist: scipy>=1.10
+Provides-Extra: dev
+Requires-Dist: pytest>=8.0; extra == "dev"
+Dynamic: license-file
+
 # Residual-Void
 
 > **Production status:** Pre-production. Review [docs/security.md](docs/security.md) and
