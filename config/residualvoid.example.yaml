@@ -1,0 +1,152 @@
+# Residual-Void Example Configuration
+#
+# COPY THIS FILE to config/residualvoid.yaml and edit before use.
+# Do NOT commit config/residualvoid.yaml to source control.
+#
+# ⚠️  PRODUCTION WARNING:
+#   Any value marked "CHANGE_ME" MUST be replaced before deploying to production.
+#   The config loader will reject placeholder values and refuse to start when
+#   APP_ENV=production.
+#
+# Environment variables always override YAML values.
+# See docs/configuration.md for the full reference.
+
+# ---------------------------------------------------------------------------
+# Environment
+# ---------------------------------------------------------------------------
+# Overridden by APP_ENV environment variable.
+# Values: development | staging | production
+environment: development
+
+# Unique identifier for this node in the cluster.
+# Overridden by RESIDUALVOID_NODE_ID.
+node_id: "node-01"
+
+# Logging level: debug | info | warning | error | critical
+log_level: info
+
+# ---------------------------------------------------------------------------
+# Security
+# ---------------------------------------------------------------------------
+security:
+  # HMAC master secret used by ResidualVoid for internal MAC operations.
+  # Minimum 32 characters in production.
+  # Overridden by RESIDUALVOID_SECRET_KEY.
+  #
+  # ⚠️  PRODUCTION: Replace CHANGE_ME with a high-entropy secret.
+  #     e.g.: python -c "import secrets; print(secrets.token_hex(32))"
+  secret_key: "CHANGE_ME"
+
+  # Active signing key used to sign inter-component tokens (JWT-style).
+  # kid is derived from a hash of this value automatically.
+  # Overridden by RESIDUALVOID_SIGNING_KEY.
+  #
+  # ⚠️  PRODUCTION: Replace CHANGE_ME with a high-entropy secret.
+  signing_key: "CHANGE_ME"
+
+  # Previous signing key — set during key rotation grace window only.
+  # Leave empty when not rotating.
+  # Overridden by RESIDUALVOID_PREVIOUS_SIGNING_KEY.
+  previous_signing_key: ""
+
+  # Grace window duration (seconds) during which tokens signed with
+  # previous_signing_key are still accepted.
+  key_rotation_grace_seconds: 300
+
+  # Token TTL (seconds) for replay protection.
+  token_ttl_seconds: 30
+
+  # Maximum accepted clock skew between nodes (seconds).
+  # Requires NTP synchronization in production.
+  max_clock_skew_seconds: 10
+
+  # Nonce cache backend: memory | redis
+  # Use redis for multi-process or multi-instance deployments.
+  nonce_cache_backend: memory
+
+  # Redis URL for nonce cache — required when nonce_cache_backend=redis.
+  # Overridden by RESIDUALVOID_NONCE_REDIS_URL.
+  # nonce_cache_redis_url: "redis://localhost:6379/0"
+
+# ---------------------------------------------------------------------------
+# Network (ResidualNetworkManager)
+# ---------------------------------------------------------------------------
+network:
+  # Address and port for ResidualNetworkManager to listen on.
+  listen_address: "0.0.0.0"
+  listen_port: 7700
+
+  # Seed peers for bootstrap discovery (host:port).
+  # ⚠️  PRODUCTION: Must list at least one real peer.
+  seed_peers:
+    - "peer1.example.internal:7700"
+    - "peer2.example.internal:7700"
+
+  # mTLS configuration — required in production.
+  # ⚠️  PRODUCTION: Set these paths to real certificate files.
+  tls_cert_file: ""    # e.g. /etc/residualvoid/tls/server.crt
+  tls_key_file: ""     # e.g. /etc/residualvoid/tls/server.key
+  tls_ca_file: ""      # e.g. /etc/residualvoid/tls/ca.crt
+
+  # Peers to unconditionally block.
+  blocked_peers: []
+
+  # Connection dial timeout (seconds).
+  connection_timeout_seconds: 5
+
+# ---------------------------------------------------------------------------
+# Coherence (CoherentVoid)
+# ---------------------------------------------------------------------------
+coherence:
+  # Minimum number of nodes required for consensus.
+  # ⚠️  PRODUCTION: Must be >= 2.
+  quorum_size: 2
+
+  # Seconds before an epoch transition is declared failed.
+  epoch_timeout_seconds: 60
+
+  # CoherentVoid heartbeat interval (seconds).
+  heartbeat_interval_seconds: 5
+
+# ---------------------------------------------------------------------------
+# Persistence
+# ---------------------------------------------------------------------------
+persistence:
+  # Database connection string.
+  # SQLite for development; PostgreSQL recommended for production.
+  # Overridden by RESIDUALVOID_DB_URL.
+  #
+  # Development default:
+  db_url: "sqlite:///./data/residualvoid.db"
+  #
+  # Production example (PostgreSQL):
+  # db_url: "******db.example.internal:5432/residualvoid"
+
+  # Directory where snapshots are written.
+  snapshot_dir: "./data/snapshots/"
+
+  # How often ResidualVoid takes a coherence-state snapshot (seconds).
+  snapshot_interval_seconds: 300
+
+  # Number of snapshots to retain; older ones are pruned.
+  snapshot_retain_count: 10
+
+  # Force restore from a specific snapshot path on next startup.
+  # Leave empty for normal (latest valid snapshot) startup.
+  snapshot_restore_path: ""
+
+  # SQLite WAL checkpoint page count threshold.
+  wal_checkpoint_interval: 1000
+
+# ---------------------------------------------------------------------------
+# ResidualFieldMind
+# ---------------------------------------------------------------------------
+fieldmind:
+  # Directory where model artifacts are stored.
+  model_artifact_dir: "./data/models/"
+
+  # Maximum duration (seconds) for a single inference pass.
+  inference_timeout_seconds: 10
+
+  # How often ResidualFieldMind pushes policy updates to ResidualVoid (seconds).
+  policy_update_interval_seconds: 30
