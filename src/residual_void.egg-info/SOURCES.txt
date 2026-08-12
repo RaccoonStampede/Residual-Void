@@ -15,4 +15,5 @@ src/residual_void.egg-info/dependency_links.txt
 src/residual_void.egg-info/entry_points.txt
 src/residual_void.egg-info/requires.txt
 src/residual_void.egg-info/top_level.txt
+tests/test_config_loader.py
 tests/test_runtime.py

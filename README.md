@@ -1,7 +1,6 @@
 # Residual-Void
 
-> **Production status:** Pre-production. Review [docs/security.md](docs/security.md) and
-> [docs/operations.md](docs/operations.md) before deploying to any internet-facing environment.
+> **Release status:** Release candidate. The package is buildable, testable, and passes the project release checklist. Review [docs/security.md](docs/security.md) and [docs/operations.md](docs/operations.md) before any internet-facing deployment or production rollout.
 
 Residual-Void is a distributed coherence engine composed of four primary components:
 

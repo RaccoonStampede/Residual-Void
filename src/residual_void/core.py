@@ -7,6 +7,7 @@ import json
 import math
 import re
 import time
+import uuid
 from collections import Counter
 from dataclasses import dataclass, field
 from multiprocessing import Pool, cpu_count
@@ -168,7 +169,17 @@ class CoherentField:
 
 class SecureNode:
     @staticmethod
-    def lock_payload(payload: str | bytes, secret: str, metadata: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    def _kid(secret: str) -> str:
+        return hashlib.sha256(secret.encode("utf-8")).hexdigest()[:16]
+
+    @staticmethod
+    def lock_payload(
+        payload: str | bytes,
+        secret: str,
+        metadata: Optional[Dict[str, Any]] = None,
+        ttl_seconds: int = 30,
+        skew_seconds: int = 10,
+    ) -> Dict[str, Any]:
         now = int(time.time())
         if isinstance(payload, bytes):
             encoded_payload = base64.b64encode(payload).decode("ascii")
@@ -180,7 +191,11 @@ class SecureNode:
         body = {
             "payload": encoded_payload,
             "kind": kind,
+            "iat": now,
             "timestamp": now,
+            "exp": now + ttl_seconds,
+            "nonce": uuid.uuid4().hex,
+            "kid": SecureNode._kid(secret),
             "metadata": metadata or {},
         }
         serialized = canonical_payload(body)
@@ -188,25 +203,53 @@ class SecureNode:
         return body
 
     @staticmethod
-    def verify_payload(payload: Dict[str, Any], secret: str, ttl_seconds: int = 30, skew_seconds: int = 10) -> bool:
-        signature = payload.get("signature", "")
-        body = {k: v for k, v in payload.items() if k != "signature"}
-        serialized = canonical_payload(body)
+    def verify_payload(
+        payload: Dict[str, Any],
+        secret: str,
+        ttl_seconds: int = 30,
+        skew_seconds: int = 10,
+        previous_secret: Optional[str] = None,
+    ) -> bool:
+        candidates = [secret]
+        if previous_secret and previous_secret != secret:
+            candidates.append(previous_secret)
 
-        if not signature or not hmac_verify(secret, serialized, signature):
-            return False
+        for candidate in candidates:
+            signature = payload.get("signature", "")
+            body = {k: v for k, v in payload.items() if k != "signature"}
+            serialized = canonical_payload(body)
 
-        timestamp = payload.get("timestamp")
-        if not isinstance(timestamp, int):
-            return False
+            if not signature or not hmac_verify(candidate, serialized, signature):
+                continue
 
-        now = int(time.time())
-        if timestamp > now + skew_seconds:
-            return False
-        if now - timestamp > ttl_seconds + skew_seconds:
-            return False
+            timestamp = payload.get("iat")
+            if timestamp is None:
+                timestamp = payload.get("timestamp")
+            if not isinstance(timestamp, int):
+                continue
 
-        return True
+            exp = payload.get("exp")
+            if not isinstance(exp, int):
+                continue
+
+            nonce = payload.get("nonce")
+            kid = payload.get("kid")
+            if not isinstance(nonce, str) or not nonce:
+                continue
+            if not isinstance(kid, str) or kid != SecureNode._kid(candidate):
+                continue
+
+            now = int(time.time())
+            if timestamp > now + skew_seconds:
+                continue
+            if exp < now - skew_seconds:
+                continue
+            if now - timestamp > ttl_seconds + skew_seconds:
+                continue
+
+            return True
+
+        return False
 
 
 class CoherentVoid:

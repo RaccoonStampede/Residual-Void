@@ -38,3 +38,22 @@ def test_geometry_store_query_smoke() -> None:
     ranked = geometry.query("alpha")
     assert ranked
     assert ranked[0][1] >= 0.0
+
+
+def test_signed_envelope_contains_nonce_and_timing_claims() -> None:
+    packet = SecureNode.lock_payload("release candidate", secret="alpha")
+
+    assert "nonce" in packet
+    assert "iat" in packet
+    assert "exp" in packet
+    assert "kid" in packet
+    assert SecureNode.verify_payload(packet, "alpha")
+
+
+def test_network_replay_protection_rejects_duplicate_nonce() -> None:
+    manager = ResidualNetworkManager()
+    manager.create_network("a", "secret-a")
+
+    packet = SecureNode.lock_payload("coherence replay check", secret="secret-a")
+    assert manager.validate_message("a", "secret-a", packet) is True
+    assert manager.validate_message("a", "secret-a", packet) is False
