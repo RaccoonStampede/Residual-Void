@@ -39,8 +39,8 @@ export RESIDUALVOID_SIGNING_KEY=<your-signing-key>
 # 3. Validate config (will fail-fast on placeholder secrets in production)
 python src/config_loader.py --validate config/residualvoid.yaml
 
-# 4. Run
-python -m residualvoid
+# 4. Run runtime package
+PYTHONPATH=src python -m residual_void --demo
 ```
 
 > ⚠️ **Never run in production with placeholder secrets.** The config loader will reject
@@ -109,6 +109,22 @@ See [docs/security.md](docs/security.md) for the threat model and controls.
 pip install -r requirements.txt   # if present
 python -m pytest                  # run tests
 APP_ENV=development python src/config_loader.py --validate config/residualvoid.example.yaml
+```
+
+### Runtime usage
+
+```python
+from residual_void import ResidualNetworkManager, ResidualVoid, SecureNode
+
+runtime = ResidualVoid(secret="dev-secret")
+packet = SecureNode.lock_payload("hello coherence", secret="dev-secret")
+lock_id = runtime.authenticated_ingest_lock(packet)
+runtime.confirm(lock_id)
+print(runtime.project("hello"))
+
+manager = ResidualNetworkManager()
+manager.create_network("private-a", "secret-a")
+manager.create_network("private-b", "secret-b")
 ```
 
 ---
