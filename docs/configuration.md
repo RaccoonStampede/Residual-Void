@@ -6,11 +6,12 @@
 
 ## Overview
 
-Residual-Void is configured through a YAML file (default: `config/residualvoid.yaml`)
-combined with environment-variable overrides.  Environment variables always take precedence
-over file values.
+Residual-Void is configured through a YAML file copied from the repository example:
+`config/residualvoid.example.yaml` to `config/residualvoid.yaml`, combined with
+environment-variable overrides. Environment variables always take precedence over file values.
 
-Start from the annotated example: `config/residualvoid.example.yaml`.
+This repo does not ship a ready-to-use production config at `config/residualvoid.yaml`; create
+that file locally from the example before validation or deployment.
 
 ---
 
@@ -135,9 +136,10 @@ Placeholder values that are rejected in production:
 If your deployment does not set `APP_ENV`, the system defaults to `development`.
 No behavior change. To move toward production:
 
-1. Set `APP_ENV=production` in your deployment environment.
-2. Ensure all secrets are set via environment variables (not YAML literals).
-3. Run `python src/config_loader.py --validate config/residualvoid.yaml` — it will report
+1. Copy `config/residualvoid.example.yaml` to `config/residualvoid.yaml`.
+2. Set `APP_ENV=production` in your deployment environment.
+3. Ensure all secrets are set via environment variables (not YAML literals).
+4. Run `python src/config_loader.py --validate config/residualvoid.yaml` — it will report
    any placeholder values that must be replaced.
 
 ### From: SQLite to PostgreSQL

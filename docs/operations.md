@@ -102,11 +102,12 @@ Each component exposes:
 
 ### Component Won't Start
 
-1. Check logs for `CRITICAL` or `ERROR` messages at startup.
-2. Run `python src/config_loader.py --validate config/residualvoid.yaml` to verify config.
-3. Confirm `APP_ENV` matches intended environment.
-4. Check database connectivity and WAL mode.
-5. Verify NTP synchronization (`chronyc tracking` or `timedatectl`).
+1. Copy `config/residualvoid.example.yaml` to `config/residualvoid.yaml` if you have not already.
+2. Check logs for `CRITICAL` or `ERROR` messages at startup.
+3. Run `python src/config_loader.py --validate config/residualvoid.yaml` to verify config.
+4. Confirm `APP_ENV` matches intended environment.
+5. Check database connectivity and WAL mode.
+6. Verify NTP synchronization (`chronyc tracking` or `timedatectl`).
 
 ### Replay Detection Spike
 
