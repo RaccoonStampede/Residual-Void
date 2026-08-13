@@ -34,16 +34,7 @@ __all__ = [
     "pi_helix_drive",
 ]
 
-# Optional experimental layers – imported lazily to avoid mandatory dependencies
-def _lazy_geometry():
-    from .geometry import ResidualGeometry  # noqa: F401
-    return ResidualGeometry
-
-def _lazy_mind():
-    from .mind import ResidualFieldMind  # noqa: F401
-    return ResidualFieldMind
-
-# Make them importable from the package for backward compat
+# Optional experimental layers – kept for backward compat but not on the default path
 try:
     from .geometry import ResidualGeometry
     from .mind import ResidualFieldMind

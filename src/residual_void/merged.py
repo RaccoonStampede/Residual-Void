@@ -38,6 +38,7 @@ class ResidualVoid:
 
         self._secret_str: str = secret
         self._void = CoherentVoid(name=name, secret=secret)
+        self._node = SecureNode(f"__facade__{id(self)}", self._void)
         self._pending: Dict[str, Dict[str, Any]] = {}
         self._lock = threading.RLock()
 
@@ -46,8 +47,7 @@ class ResidualVoid:
     # ------------------------------------------------------------------
     def lock(self, text: str, domain: str = "general", protect: bool = True) -> str:
         """Lock text directly via HMAC signature; returns 'locked' or error reason."""
-        node = SecureNode(f"__facade__{id(self)}", self._void)
-        return node.lock_text(text, domain=domain, protect=protect)
+        return self._node.lock_text(text, domain=domain, protect=protect)
 
     def lock_and_confirm(
         self,
@@ -57,7 +57,8 @@ class ResidualVoid:
         protect: bool = True,
     ) -> bool:
         """Envelope-based lock+confirm in one call; returns True on success."""
-        packet = SecureNode.lock_payload(payload, secret=self._secret_str, metadata=metadata)
+        merged_metadata = {**(metadata or {}), "domain": domain, "protect": protect}
+        packet = SecureNode.lock_payload(payload, secret=self._secret_str, metadata=merged_metadata)
         lock_id = self.authenticated_ingest_lock(packet)
         if not lock_id:
             return False
@@ -85,7 +86,9 @@ class ResidualVoid:
         import base64
         kind = envelope.get("kind", "text")
         content = envelope.get("payload", "")
-        domain = envelope.get("metadata", {}).get("domain", "general")
+        meta = envelope.get("metadata", {})
+        domain = meta.get("domain", "general")
+        protect = bool(meta.get("protect", True))
 
         if kind == "binary":
             raw_bytes = base64.b64decode(content.encode("ascii"))
@@ -103,9 +106,9 @@ class ResidualVoid:
             domain=domain,
             source="facade",
             signature=sig,
+            protect=protect,
         )
         if result == "locked":
-            # Return the last stored residual as a Residual-like object
             return self._void.field.residuals[-1] if self._void.field.residuals else None
         return None
 
