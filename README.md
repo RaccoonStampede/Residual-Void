@@ -1,4 +1,3 @@
-````markdown
 # ResidualVoid
 
 > **Release Status:** ✅ **v1.0.1 Complete Production Build** — Full hierarchical edge-nulling organ, nested shells, imprint layers, and god-zone regulation. All 7 production claims verified through comprehensive 21-test suite. Production-ready and fully operational.
@@ -248,7 +247,7 @@ manager.create_network("network_b", "secret_b")
 ### Requirements
 
 ```
-Python 3.8+
+Python 3.11+
 numpy
 scipy (signal, sparse, linalg)
 ```
@@ -331,4 +330,4 @@ MIT License. See `LICENSE` for details.
 ---
 
 **ResidualVoid v1.0.1 is production-ready. Deploy with confidence.** 🚀
-````
+

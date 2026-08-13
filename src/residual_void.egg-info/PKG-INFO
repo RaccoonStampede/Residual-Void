@@ -1,7 +1,13 @@
 Metadata-Version: 2.4
 Name: residual-void
-Version: 0.1.0
-Summary: Residual-Void coherence engine runtime
+Version: 1.0.1
+Summary: Residual-Void coherence engine — hierarchical edge-nulling, nested shells, imprint layers, and god-zone regulation
+Author: David Hudson / RaccoonStampede
+License: MIT
+Project-URL: Homepage, https://github.com/RaccoonStampede/Residual-Void
+Project-URL: Repository, https://github.com/RaccoonStampede/Residual-Void
+Project-URL: Bug Tracker, https://github.com/RaccoonStampede/Residual-Void/issues
+Keywords: coherence,residual,geometry,field,neural,void
 Requires-Python: >=3.11
 Description-Content-Type: text/markdown
 License-File: LICENSE
@@ -12,7 +18,6 @@ Provides-Extra: dev
 Requires-Dist: pytest>=8.0; extra == "dev"
 Dynamic: license-file
 
-````markdown
 # ResidualVoid
 
 > **Release Status:** ✅ **v1.0.1 Complete Production Build** — Full hierarchical edge-nulling organ, nested shells, imprint layers, and god-zone regulation. All 7 production claims verified through comprehensive 21-test suite. Production-ready and fully operational.

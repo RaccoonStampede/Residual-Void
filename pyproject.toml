@@ -4,15 +4,24 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "residual-void"
-version = "0.1.0"
-description = "Residual-Void coherence engine runtime"
+version = "1.0.1"
+description = "Residual-Void coherence engine — hierarchical edge-nulling, nested shells, imprint layers, and god-zone regulation"
 readme = "README.md"
+license = {text = "MIT"}
+authors = [
+  {name = "David Hudson / RaccoonStampede"},
+]
+keywords = ["coherence", "residual", "geometry", "field", "neural", "void"]
 requires-python = ">=3.11"
 dependencies = [
   "pyyaml>=6.0",
   "numpy>=1.24",
   "scipy>=1.10",
 ]
+
+[project.urls]
+Repository = "https://github.com/RaccoonStampede/Residual-Void"
+"Bug Tracker" = "https://github.com/RaccoonStampede/Residual-Void/issues"
 
 [project.scripts]
 residual-void = "residual_void.__main__:main"
