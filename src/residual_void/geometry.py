@@ -212,8 +212,9 @@ class ResidualGeometry:
             # Apply control to refusal strength
             self.refusal_strength = np.clip(self.refusal_strength + 0.001 * control, 0.3, 0.97)
             
-            # Natural decay + ethical leakage
-            self.drift = max(0, self.drift - 0.0015)
+            # Natural decay + ethical leakage; enhanced decay when drift exceeds target
+            extra_decay = max(0.0, error) * 0.05
+            self.drift = max(0, self.drift - 0.0015 - extra_decay)
             self.drift += 0.005 * (1 - self.refusal_strength)
             
             # Ghost Tax: irreducible generative floor
