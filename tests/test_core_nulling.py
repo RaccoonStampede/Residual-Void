@@ -47,7 +47,7 @@ def test_edge_energy_high_after_nulling(test_signal):
     residual, peaks = hierarchical_edge_extract_v2(measured, fs)
     
     # Sum all edge peak magnitudes
-    total_energy = sum(mag for band in peaks.values() for freq, mag in band[:2])
+    total_energy = sum(mag for band in peaks.values() for freq, mag in band)
     
     # After nulling, edge energy should be concentrated (high relative to input)
     # Normalized: should be > 0.3 (significant residual energy)

@@ -136,7 +136,7 @@ pip install residual-void
 ```
 
 ```python
-from residual_void.merged import ResidualVoid
+from residual_void import ResidualVoid
 
 runtime = ResidualVoid(secret="your-32-char-secret-key-here")
 
