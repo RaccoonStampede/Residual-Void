@@ -15,6 +15,7 @@ from residual_void import ResidualFieldMind, ResidualGeometry, ResidualNetworkMa
 @pytest.fixture(autouse=True)
 def seeded_numpy() -> None:
     np.random.seed(0)
+    yield
 
 
 @pytest.fixture

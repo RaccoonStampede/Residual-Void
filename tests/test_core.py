@@ -102,3 +102,13 @@ def test_coherent_void_confirms_binary_payloads() -> None:
     assert residual.payload == "AAFhYmM="
     projected = void.project(residual.payload, require_grounding=False)
     assert projected[0][0].payload == residual.payload
+
+
+def test_coherent_void_refuses_low_scoring_projection() -> None:
+    void = CoherentVoid(secret="alpha", min_project_score=0.95)
+    packet = SecureNode.lock_payload("alpha beta gamma", secret="alpha")
+
+    lock_id = void.authenticated_ingest_lock(packet)
+    assert lock_id is not None
+    assert void.confirm(lock_id) is not None
+    assert void.project("unrelated query", require_grounding=True) == []

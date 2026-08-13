@@ -33,6 +33,7 @@ def test_void_and_geometry_sync_preserve_binary_payloads(network_manager: Residu
     residual = runtime.confirm(lock_id)
 
     synced = network_manager.void_to_geometry_sync("alpha", "secret-a")
+    # The regression here was base64-encoding an already base64-encoded payload.
     double_encoded = base64.b64encode(residual.payload.encode("ascii")).decode("ascii")
     mind_values = [item["value"] for item in runtime.mind.geometry._data.values()]
 
