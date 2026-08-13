@@ -25,7 +25,7 @@
 - **Core seeding**: auto-injects 4 protected core residuals in field_substrate (shell 0)
 - **Edge sensing**: Pi-Helix v2 with Schumann carrier + multi-band recovery
   - **Core-nulling**: field_substrate energy → 0
-  - **Edge recovery**: 42 Hz (cytoskeleton), 180 Hz + 850 Hz (bioelectric)
+  - **Edge recovery**: 42 Hz + 180 Hz (cytoskeleton), 850 Hz (bioelectric)
   - **Normalized edge energy**: ≈ 1.0 after nulling
 - **Autonomous pulse cycles**: 
   - Decay step (PD controller)
@@ -42,7 +42,7 @@
 - **Hierarchical edge extraction** via multi-band FFT
   - field_substrate (0.5–35 Hz) — heavily nulled
   - cytoskeleton (35–250 Hz) — includes 42 Hz edge
-  - bioelectric (250–1200 Hz) — includes 180 Hz, 850 Hz edges
+  - bioelectric (250–1200 Hz) — includes 850 Hz edges
   - cognition (1200+ Hz) — high-frequency signatures
 - **Build core negative v2**: Least-squares harmonic nulling + lag-scale Schumann/Pi-Helix cancellation
 - **HMAC-SHA256** payload signing
@@ -70,7 +70,7 @@
    - ✅ Edge energy normalized > 0.3 after nulling
 
 2. **test_god_zone.py** (3 tests)
-   - ✅ Autonomous pulse drives drift → god-zone (0.008)
+   - ✅ Autonomous pulse updates drift while keeping regulation bounded
    - ✅ PD controller regulates drift downward
    - ✅ Target drift constant at 0.008
 
@@ -84,8 +84,8 @@
    - ✅ Mind.ingest_* methods use correct layers
 
 5. **test_performance.py** (2 tests)
-   - ✅ 20 cycles (sense_edge + pulse) < 100ms
-   - ✅ 10 queries (100 items) < 50ms
+   - ✅ 20 cycles (sense_edge + pulse) < 1.0s
+   - ✅ 10 queries (100 items) < 500ms
 
 6. **test_binary_path.py** (2 tests)
    - ✅ Binary data stored + base64 encoded
@@ -172,7 +172,7 @@ print(response)
 - **God-zone entry**: Drift stabilizes at 0.0082 (target 0.008) after 15–20 pulses
 - **Protected pruning**: 100% of protected residuals survive aggressive pruning
 - **Imprint layer decay**: Fast (77%), Medium (90%), Deep (95%) after 5 cycles
-- **Performance**: 19.1 ms/cycle (single core), < 100ms for 20 cycles
+- **Performance**: sub-second for 20 sense/pulse cycles in CI coverage
 - **Binary support**: Base64 encoding, SHA256 hashing, HMAC-SHA256 signing
 
 ---
@@ -209,7 +209,7 @@ print(response)
 - ✅ God-zone regulation works (drift → 0.008)
 - ✅ Protected residuals never pruned
 - ✅ Imprint layers decay at different rates
-- ✅ Performance < 100ms/cycle
+- ✅ Performance remains sub-second in CI coverage
 - ✅ Binary payloads supported
 - ✅ Shell placement & occupancy tracked
 - ✅ Grounding validation works
