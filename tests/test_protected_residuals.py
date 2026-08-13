@@ -1,5 +1,5 @@
 """Test protected residual handling and safe pruning."""
-from src.residual_void.geometry import ResidualGeometry
+from residual_void.geometry import ResidualGeometry
 
 
 def test_protected_residuals_survive_pruning(geometry):

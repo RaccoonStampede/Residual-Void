@@ -1,11 +1,11 @@
 """Test performance: no regression on perception/pulse cycles."""
 import time
-from src.residual_void.mind import ResidualFieldMind
-from src.residual_void.geometry import ResidualGeometry
+from residual_void.mind import ResidualFieldMind
+from residual_void.geometry import ResidualGeometry
 
 
 def test_pulse_cycle_performance():
-    """Verify that 20 sense_edge + pulse cycles remain sub-second."""
+    """Verify that 20 sense_edge + pulse cycles complete in < 100ms."""
     mind = ResidualFieldMind()
     mind._seed_core()
     
@@ -17,8 +17,8 @@ def test_pulse_cycle_performance():
     
     elapsed = time.time() - start
     
-    # Signal processing should remain comfortably sub-second in CI
-    assert elapsed < 2.0, f"Performance regression: {elapsed:.3f}s for 20 cycles (limit 2.0s)"
+    # Should complete in < 100ms (generous for signal processing)
+    assert elapsed < 0.1, f"Performance regression: {elapsed:.3f}s for 20 cycles (limit 0.1s)"
     print(f"✓ 20 cycles completed in {elapsed*1000:.1f}ms")
 
 
@@ -39,6 +39,6 @@ def test_query_performance():
         results = geometry.query("integration coherence", top_k=5)
     elapsed = time.time() - start
     
-    # 10 queries of 100 items should remain comfortably sub-second in CI
-    assert elapsed < 1.0, f"Query performance issue: {elapsed*1000:.1f}ms (limit 1000ms)"
+    # 10 queries of 100 items should be < 50ms
+    assert elapsed < 0.05, f"Query performance issue: {elapsed*1000:.1f}ms (limit 50ms)"
     print(f"✓ 10 queries (100 items) completed in {elapsed*1000:.1f}ms")

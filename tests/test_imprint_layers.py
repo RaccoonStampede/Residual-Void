@@ -1,6 +1,6 @@
 """Test multi-timescale imprint layers (fast, medium, deep)."""
-from src.residual_void.geometry import ResidualGeometry
-from src.residual_void.mind import ResidualFieldMind
+from residual_void.geometry import ResidualGeometry
+from residual_void.mind import ResidualFieldMind
 
 
 def test_imprint_layer_tracking(geometry):
