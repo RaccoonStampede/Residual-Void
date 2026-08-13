@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import hmac
 import time
 import threading
@@ -194,7 +195,7 @@ class ResidualNetworkManager:
         synced = 0
         for res in residuals[-40:]:  # Sync last 40
             if res.kind == "binary":
-                runtime.mind.ingest_binary(res.payload.encode("utf-8"))
+                runtime.mind.ingest_binary(base64.b64decode(res.payload.encode("ascii")))
             else:
                 runtime.mind.ingest_text(res.payload)
             synced += 1

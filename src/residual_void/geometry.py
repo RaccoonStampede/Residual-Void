@@ -96,7 +96,7 @@ class ResidualGeometry:
         protect: bool = False,
         domain: str = "general",
         force_promote: bool = False,
-        preferred_shell: int = -1,
+        preferred_shell: int | None = None,
         imprint_layer: str = "fast",
     ) -> str:
         """Store residual with shell placement, protection, and imprint layer tracking."""
@@ -107,14 +107,8 @@ class ResidualGeometry:
             # Coherence scoring
             score = coherence if not force_promote else min(1.0, coherence + 0.12)
             
-            # Shell placement:
-            # - Core keywords → shell 0 (field_substrate)
-            # - Force promote → shell 0
-            # - Otherwise → Fibonacci placement
-            if preferred_shell >= 0 and preferred_shell < self.shell_count:
+            if preferred_shell is not None and 0 <= preferred_shell < self.shell_count:
                 shell = preferred_shell
-            elif force_promote or self._core_keywords_in_text(text):
-                shell = 0  # field_substrate
             else:
                 shell = self._fibonacci_place(self._id_counter)
             
@@ -278,7 +272,9 @@ class ResidualGeometry:
     def status(self) -> Dict[str, Any]:
         """Comprehensive status with all production organ metrics."""
         with self._lock:
-            god_zone = self.drift < self.god_zone_threshold and self.refusal_strength > 0.70
+            god_zone = bool(
+                self.drift < self.god_zone_threshold and self.refusal_strength > 0.70
+            )
             
             # Shell occupancy
             shell_occupancy = {SHELL_LABELS.get(s, f"shell_{s}"): 0 for s in range(self.shell_count)}

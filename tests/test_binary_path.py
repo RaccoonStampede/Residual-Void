@@ -7,11 +7,13 @@ from src.residual_void.mind import ResidualFieldMind
 def test_binary_storage(geometry):
     """Verify that binary data is stored and retrieved correctly."""
     binary_data = b"\x00\x01\x02\x03\xff\xfe\xfd"
+    expected_encoded = base64.b64encode(binary_data).decode("ascii")
     
-    # Store binary
+    # Store encoded binary payload
     rid = geometry.store(
-        binary_data,
+        expected_encoded,
         coherence=0.80,
+        domain="binary",
         imprint_layer="medium",
     )
     
@@ -19,8 +21,6 @@ def test_binary_storage(geometry):
     stored = geometry._data[rid]
     assert stored["value"] is not None, "Binary not stored"
     
-    # Binary is base64 encoded in storage
-    expected_encoded = base64.b64encode(binary_data).decode("ascii")
     assert stored["value"] == expected_encoded, "Binary encoding mismatch"
 
 

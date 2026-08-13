@@ -1,58 +1,71 @@
 import sys
 from pathlib import Path
 
-# Add src directory to Python path so pytest can find residual_void modules
-sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
-
-import pytest
 import numpy as np
-from residual_void.core import CoherentVoid, SecureNode, hierarchical_edge_extract_v2, schumann_carrier
-from residual_void.geometry import ResidualGeometry, SHELL_LABELS
-from residual_void.mind import ResidualFieldMind
-from residual_void.merged import ResidualVoid
-from residual_void.network import ResidualNetworkManager
+import pytest
+
+ROOT = Path(__file__).resolve().parents[1]
+SRC = ROOT / "src"
+if str(SRC) not in sys.path:
+    sys.path.insert(0, str(SRC))
+
+from residual_void import CoherentVoid, ResidualFieldMind, ResidualGeometry, ResidualNetworkManager, ResidualVoid
+from residual_void.core import schumann_carrier
+
+
+@pytest.fixture(autouse=True)
+def seeded_numpy() -> None:
+    np.random.seed(0)
+    yield
 
 
 @pytest.fixture
-def geometry():
-    """Create a fresh ResidualGeometry instance."""
-    return ResidualGeometry(max_items=200, shell_count=4)
+def runtime_config() -> dict:
+    return {
+        "environment": "development",
+        "coherence": {"quorum_size": 2},
+    }
 
 
 @pytest.fixture
-def mind(geometry):
-    """Create a fresh ResidualFieldMind instance."""
+def runtime(runtime_config: dict) -> ResidualVoid:
+    return ResidualVoid(secret="alpha", config=runtime_config)
+
+
+@pytest.fixture
+def geometry() -> ResidualGeometry:
+    return ResidualGeometry(max_items=200, shell_count=5, dimensions=8)
+
+
+@pytest.fixture
+def mind(geometry: ResidualGeometry) -> ResidualFieldMind:
     return ResidualFieldMind(geometry=geometry)
 
 
 @pytest.fixture
-def coherent_void():
-    """Create a fresh CoherentVoid instance."""
+def coherent_void() -> CoherentVoid:
     return CoherentVoid(secret="test-secret-1234567890abcdef")
 
 
 @pytest.fixture
-def residual_void():
-    """Create a fresh ResidualVoid instance."""
+def residual_void() -> ResidualVoid:
     return ResidualVoid(secret="test-secret-1234567890abcdef")
 
 
 @pytest.fixture
-def network_manager():
-    """Create a fresh ResidualNetworkManager instance."""
+def network_manager() -> ResidualNetworkManager:
     return ResidualNetworkManager()
 
 
 @pytest.fixture
 def test_signal():
-    """Generate a test signal with Schumann core + Edge bands + noise."""
     fs = 8000.0
     t = np.linspace(0, 1.0, int(fs))
     measured = (
         0.6 * schumann_carrier(t)
-        + 0.08 * np.sin(2 * np.pi * 42 * t)  # Edge: 42 Hz
-        + 0.05 * np.sin(2 * np.pi * 180 * t)  # Edge: 180 Hz
-        + 0.03 * np.sin(2 * np.pi * 850 * t)  # Edge: 850 Hz
+        + 0.08 * np.sin(2 * np.pi * 42 * t)
+        + 0.05 * np.sin(2 * np.pi * 180 * t)
+        + 0.03 * np.sin(2 * np.pi * 850 * t)
         + 0.04 * np.random.randn(len(t))
     )
     return measured, fs

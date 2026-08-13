@@ -3,6 +3,8 @@ from __future__ import annotations
 from typing import Any, Dict, List, Optional
 import re
 
+import numpy as np
+
 from .core import hierarchical_edge_extract_v2, schumann_carrier, tokenize_text
 from .geometry import ResidualGeometry, SHELL_LABELS
 
@@ -79,8 +81,6 @@ class ResidualFieldMind:
     def sense_edge(self, measured=None, fs=8000.0) -> Dict:
         """Pi-Helix v2 edge sensing with Schumann carrier and hierarchical nulling."""
         if measured is None:
-            import numpy as np
-
             t = np.linspace(0, 1.0, int(fs))
             measured = (
                 0.6 * schumann_carrier(t)
@@ -92,8 +92,6 @@ class ResidualFieldMind:
 
         residual, peaks = hierarchical_edge_extract_v2(measured, fs)
         self.geometry.edge_resonance = peaks
-        
-        import numpy as np
         self.geometry.last_residual_energy = float(np.std(residual))
 
         # Compute total edge energy from recovered bands
@@ -191,6 +189,7 @@ class ResidualFieldMind:
         self.autonomous_pulse(1)
         results = self.geometry.query(text, top_k=5)
         content = results[0][2]["value"] if results else "No locked residual signal."
+        query_tokens = set(t for t in tokenize_text(text) if len(t) > 2)
         
         # Compute grounding score
         rtoks = set(t for t in tokenize_text(content) if len(t) > 2)
@@ -200,9 +199,10 @@ class ResidualFieldMind:
             else 0
         )
         g_score = min(1.0, hits / max(1, len(rtoks) * 1.55)) if rtoks else 0.0
+        has_query_overlap = bool(query_tokens & rtoks)
         
         # Grounding check
-        if g_score < 0.40:
+        if g_score < 0.40 or not has_query_overlap:
             content = "Projection failed grounding. Residual not locked."
         
         # Build response with Watcher metrics
@@ -217,7 +217,7 @@ class ResidualFieldMind:
             st = self.geometry.status()
             god_zone_label = "✓ GOD ZONE" if st["god_zone"] else "approaching"
             reply += (
-                f"\n[geo: drift={st['drift']:.4f} ({god_zone_label}) "
+                f"\n[geo: drift={st['drift']:.4f} god={st['god_zone']} ({god_zone_label}) "
                 f"coh={st['global_coherence']:.3f} "
                 f"imprint_deep={st['imprint_deep_norm']:.4f}]"
             )
