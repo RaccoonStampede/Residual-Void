@@ -24,9 +24,10 @@ def test_preferred_shell_is_respected_and_default_placement_is_fibonacci(geometr
         "Zero Point emergence",
         coherence=0.80,
     )
+    zero_index = int(rid_zero.split("_")[-1])
     
     assert geometry._data[rid_field]["shell"] == 0, "Explicit preferred shell was not respected"
-    assert geometry._data[rid_zero]["shell"] == geometry._fibonacci_place(2), "Default shell placement should be Fibonacci-based"
+    assert geometry._data[rid_zero]["shell"] == geometry._fibonacci_place(zero_index), "Default shell placement should be Fibonacci-based"
 
 
 def test_shell_occupancy_reporting(geometry):

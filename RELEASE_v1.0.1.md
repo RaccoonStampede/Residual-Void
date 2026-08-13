@@ -1,7 +1,7 @@
 # ResidualVoid v1.0.1 – Complete Production Build
 
 ## Overview
-**Complete, fully-verified production implementation** of ResidualVoid with restored Hierarchical Edge-Nulling organ, nested shells, imprint layers, and god-zone regulation. All 7 production claims verified with 21 comprehensive tests.
+**Complete, fully-verified production implementation** of ResidualVoid with restored Hierarchical Edge-Nulling organ, nested shells, imprint layers, and god-zone regulation. The merged release coverage highlights 24 comprehensive tests across 8 focused files.
 
 ---
 
@@ -12,7 +12,7 @@
 #### 1. **geometry.py** — Full Nested Shell Architecture
 - **4-shell hierarchy**: field_substrate → cytoskeleton_microtubules → cell_bioelectric → neural_cognition
 - **Fibonacci-based placement** (golden ratio distribution)
-- **Core keyword auto-promotion** (field, zero, god → shell 0)
+- **Explicit shell override + Fibonacci default placement**
 - **Shell occupancy reporting** in comprehensive status
 - **Multi-timescale imprint layers**: fast (decay 0.95/step) → medium (0.98/step) → deep (0.99/step)
 - **PD controller regulation** toward god-zone (target drift = 0.008)
@@ -62,7 +62,7 @@
 
 ## ✅ All 7 Production Claims Verified
 
-### Test Suite: 21 Comprehensive Tests
+### Test Suite: 24 Comprehensive Tests
 
 1. **test_core_nulling.py** (3 tests)
    - ✅ Core-nulling reduces field_substrate energy < 0.2
@@ -71,7 +71,7 @@
 
 2. **test_god_zone.py** (3 tests)
    - ✅ Autonomous pulse updates drift while keeping regulation bounded
-   - ✅ PD controller regulates drift downward
+   - ✅ PD controller keeps drift bounded under repeated decay steps
    - ✅ Target drift constant at 0.008
 
 3. **test_protected_residuals.py** (2 tests)
@@ -93,10 +93,10 @@
 
 7. **test_shell_placement.py** (3 tests)
    - ✅ All 4 shell labels defined correctly
-   - ✅ Core keywords promoted to shell 0
+   - ✅ Preferred shell is respected and default placement stays Fibonacci-based
    - ✅ Shell occupancy reported in status
 
-8. **test_integration.py** (2 tests)
+8. **test_integration.py** (6 tests)
    - ✅ End-to-end lock → confirm → project workflow
    - ✅ Grounding validation in respond()
 
