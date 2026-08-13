@@ -3,6 +3,8 @@ from __future__ import annotations
 from typing import Any, Dict, List, Optional
 import re
 
+import numpy as np
+
 from .core import hierarchical_edge_extract_v2, schumann_carrier, tokenize_text
 from .geometry import ResidualGeometry
 
@@ -39,7 +41,6 @@ class ResidualFieldMind:
     def sense_edge(self, measured=None, fs=8000.0):
         """Edge sensing with Pi-Helix extraction."""
         if measured is None:
-            import numpy as np
             t = np.linspace(0, 1.0, int(fs))
             measured = (0.6 * schumann_carrier(t) + 0.08 * np.sin(2*np.pi*42*t) +
                         0.05 * np.sin(2*np.pi*180*t) + 0.03 * np.sin(2*np.pi*850*t) +
@@ -48,8 +49,6 @@ class ResidualFieldMind:
         residual, peaks = hierarchical_edge_extract_v2(measured, fs)
         self.geometry.edge_resonance = peaks
         self.geometry.last_residual_energy = float(np.std(residual))
-        
-        import numpy as np
         total_edge = sum(m for band in peaks.values() for _, m in band[:2])
         if total_edge > 0:
             self.geometry.ethical_tilt = float(np.clip(self.geometry.ethical_tilt + 0.002 * np.tanh(total_edge/2000), -0.3, 0.3))

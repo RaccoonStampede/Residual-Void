@@ -55,7 +55,7 @@ class ResidualGeometry:
         return float(np.dot(a, b) / denom)
 
     def store(self, text: str, coherence: float = 0.85, protect: bool = False,
-              domain: str = "general", force_promote: bool = False, preferred_shell: int = 0) -> str:
+              domain: str = "general", force_promote: bool = False, preferred_shell: int | None = None) -> str:
         with self._lock:
             self._id_counter += 1
             rid = f"res_{self._id_counter}"
@@ -64,7 +64,7 @@ class ResidualGeometry:
             score = coherence if not force_promote else min(1.0, coherence + 0.12)
             
             # Shell placement (Fibonacci-based)
-            shell = preferred_shell if preferred_shell < self.shell_count else self._fibonacci_place(self._id_counter)
+            shell = preferred_shell if preferred_shell is not None and 0 <= preferred_shell < self.shell_count else self._fibonacci_place(self._id_counter)
             
             vector = self._embed(text)
             

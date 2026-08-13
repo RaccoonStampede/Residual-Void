@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 from typing import Any, Dict, Optional
 
 from config_loader import ConfigValidationError, load_config, validate_config
@@ -41,7 +42,7 @@ class ResidualVoid:
             return None
 
         if residual.kind == "binary":
-            self.mind.ingest_text(residual.payload, metadata=residual.metadata)
+            self.mind.ingest_binary(base64.b64decode(residual.payload.encode("ascii")), metadata=residual.metadata)
         else:
             self.mind.ingest_text(residual.payload, metadata=residual.metadata)
         return residual
