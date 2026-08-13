@@ -69,46 +69,52 @@ def test_bit_signatures_and_hamming_similarity_cover_binary_payloads() -> None:
     assert 0.0 <= hamming_sim(sig_a, sig_c) < 1.0
 
 
-def test_coherent_field_message_passing_and_laplacian_spectrum() -> None:
-    field = CoherentField(graph_similarity_threshold=0.45)
-    for payload in (
-        "alpha beta gamma",
-        "alpha beta delta",
-        "alpha gamma delta",
-        "omega psi chi",
-    ):
-        field.store(payload)
+def test_coherent_field_hash_chain_and_rank() -> None:
+    """Lean CoherentField: store returns (ok, reason), verify_chain passes, rank works."""
+    field = CoherentField()
 
-    no_mp = {item.payload: score for item, score in field.rank("alpha beta", use_mp=False)}
-    with_mp = {item.payload: score for item, score in field.rank("alpha beta", use_mp=True, mp_layers=2)}
-    spectrum = field.compute_laplacian_spectrum()
+    ok1, reason1 = field.store("alpha beta gamma delta", domain="test")
+    ok2, reason2 = field.store("alpha beta delta epsilon omega", domain="test")
+    ok3, reason3 = field.store("omega psi chi lambda sigma", domain="test")
+    # duplicate should be rejected
+    ok_dup, reason_dup = field.store("alpha beta gamma delta", domain="test")
 
-    assert with_mp["alpha gamma delta"] > no_mp["alpha gamma delta"]
-    assert max(with_mp, key=with_mp.get) in {"alpha beta gamma", "alpha beta delta"}
-    assert spectrum["n"] == 4
-    assert spectrum["lambda2"] > 0.0
-    assert spectrum["multiplicity0"] == 1
+    assert ok1 is True and reason1 == "locked"
+    assert ok2 is True
+    assert ok3 is True
+    assert ok_dup is False and reason_dup == "duplicate"
+
+    chain_ok, chain_msg = field.verify_chain()
+    assert chain_ok is True, chain_msg
+    assert "3 residuals" in chain_msg
+
+    ranked = field.rank("alpha beta")
+    assert ranked, "Expected ranked results"
+    top_frag = ranked[0][0].fragment
+    assert "alpha" in top_frag.lower() or "beta" in top_frag.lower()
 
 
-def test_coherent_void_confirms_binary_payloads() -> None:
+def test_coherent_void_lock_and_project_via_secure_node() -> None:
+    """Lean CoherentVoid: SecureNode.lock_text ingests, project returns the fragment."""
     void = CoherentVoid(secret="alpha")
-    packet = SecureNode.lock_payload(b"\x00\x01abc", secret="alpha")
+    node = SecureNode("test_node", void)
 
-    lock_id = void.authenticated_ingest_lock(packet)
-    residual = void.confirm(lock_id)
+    result = node.lock_text("USER::ALICE::locked residual payload text", domain="secure")
+    assert result == "locked", f"Expected 'locked', got {result!r}"
 
-    assert residual is not None
-    assert residual.kind == "binary"
-    assert residual.payload == "AAFhYmM="
-    projected = void.project(residual.payload, require_grounding=False)
-    assert projected[0][0].payload == residual.payload
+    projected = node.project("USER::ALICE", mode="exact")
+    assert "locked residual payload text" in projected or "USER" in projected
+
+    ok, msg = void.verify_integrity()
+    assert ok is True, msg
 
 
 def test_coherent_void_refuses_low_scoring_projection() -> None:
-    void = CoherentVoid(secret="alpha", min_project_score=0.95)
-    packet = SecureNode.lock_payload("alpha beta gamma", secret="alpha")
+    void = CoherentVoid(secret="alpha")
+    node = SecureNode("n", void)
 
-    lock_id = void.authenticated_ingest_lock(packet)
-    assert lock_id is not None
-    assert void.confirm(lock_id) is not None
-    assert void.project("unrelated query", require_grounding=True) == []
+    result = node.lock_text("alpha beta gamma delta epsilon locked content here", domain="general")
+    assert result == "locked"
+
+    refused = void.project("something completely unrelated xyz abc qqq", mode="exact")
+    assert refused == CoherentVoid._REFUSAL

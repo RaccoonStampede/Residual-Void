@@ -11,21 +11,30 @@ import time
 import uuid
 from collections import Counter, defaultdict
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 from scipy.fft import rfft, rfftfreq
 from scipy.signal import butter, filtfilt, find_peaks
+
+BIT_DIM = 256
+_STOP_TOKENS = set(
+    "a an the of to in for on with is are was were be been being it this that "
+    "these those and or but if as at by from into over after before about".split()
+)
 
 
 def tokenize_text(text: str) -> List[str]:
     return re.findall(r"[a-zA-Z0-9_]+", text.lower())
 
 
+def tokenize(text: str) -> List[str]:
+    return re.findall(r"[a-z0-9']+", text.lower())
+
+
 def content_tokens(text: str) -> List[str]:
     """Extract meaningful tokens (stopwords filtered)."""
-    stop = {"a", "an", "the", "of", "to", "in", "for", "on", "with", "is", "are", "was", "were", "be", "it", "this", "that", "and", "or"}
-    return [t for t in tokenize_text(text) if t not in stop and len(t) > 2]
+    return [t for t in tokenize(text) if t not in _STOP_TOKENS and len(t) > 2]
 
 
 def cosine_similarity(vec_a: Counter, vec_b: Counter) -> float:
@@ -43,7 +52,19 @@ def hash_text(value: str) -> str:
     return hashlib.sha256(value.encode("utf-8")).hexdigest()
 
 
-def bytes_to_bits(data: bytes, dim: int = 256) -> np.ndarray:
+def sha256_hex(data: bytes) -> str:
+    return hashlib.sha256(data).hexdigest()
+
+
+def bytes_to_bits_packed(data: bytes) -> bytes:
+    """Produce a 32-byte packed bit signature via multi-hash."""
+    h1 = hashlib.sha256(data).digest()
+    h2 = hashlib.sha256(data + b"|residual|void|binary|v2").digest()
+    h3 = hashlib.blake2b(data, digest_size=32).digest()
+    return (h1 + h2 + h3)[:32]
+
+
+def bytes_to_bits(data: bytes, dim: int = BIT_DIM) -> np.ndarray:
     """Convert bytes to bit vector using multi-hash (SHA256 + Blake2b)."""
     h1 = hashlib.sha256(data).digest()
     h2 = hashlib.sha256(data + b"|residual|void|binary|v2").digest()
@@ -54,6 +75,10 @@ def bytes_to_bits(data: bytes, dim: int = 256) -> np.ndarray:
         extra = np.unpackbits(np.frombuffer(hashlib.sha256(combined).digest(), dtype=np.uint8))
         bits = np.concatenate([bits, extra])
     return bits[:dim].astype(np.uint8)
+
+
+def packed_to_bits(packed: bytes) -> np.ndarray:
+    return np.unpackbits(np.frombuffer(packed, dtype=np.uint8)).astype(np.uint8)
 
 
 def hamming_sim(a: np.ndarray, b: np.ndarray) -> float:
@@ -224,197 +249,234 @@ def hierarchical_edge_extract_v2(measured, fs, gamma=0.05):
 
 
 # ============================================================
-# RESIDUAL & FIELD
+# LEAN RESIDUAL & COHERENT FIELD (hash-chain, no graph/mind)
 # ============================================================
 @dataclass
 class Residual:
-    residual_id: str
-    kind: str
-    payload: str
-    tokens: List[str]
-    token_vector: Counter
-    created_at: float
-    sig: np.ndarray  # bit signature
+    """Permanent, append-only residual with cryptographic hash chain."""
+    fragment: str
+    sig_packed: bytes
     content_set: set
-    domain: str = "general"
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    domain: str
+    timestamp: float
+    version: int
+    node_id: str
+    residual_id: str
+    prev_hash: str
+    chain_hash: str
+    protect: bool = True
+    _sig_bits: np.ndarray = field(default=None, repr=False, compare=False)
+
+    def bits(self) -> np.ndarray:
+        if self._sig_bits is None:
+            self._sig_bits = packed_to_bits(self.sig_packed)
+        return self._sig_bits
+
+    # Convenience aliases kept for API compatibility
+    @property
+    def payload(self) -> str:
+        return self.fragment
+
+    @property
+    def kind(self) -> str:
+        return "text"
 
 
 class CoherentField:
-    def __init__(self, graph_similarity_threshold: float = 0.2, dim: int = 256, max_neighbors: int = 7):
-        self._residuals: List[Residual] = []
+    """Append-only residual store with SHA-256 hash chain."""
+
+    def __init__(self, dim: int = BIT_DIM):
+        self.dim = dim
+        self.residuals: List[Residual] = []
         self._exact_index: Dict[bytes, int] = {}
         self._token_index: Dict[str, List[int]] = defaultdict(list)
         self._domain_index: Dict[str, List[int]] = defaultdict(list)
-        self._adjacency: np.ndarray = np.zeros((0, 0), dtype=float)
-        self._graph_similarity_threshold = graph_similarity_threshold
-        self.adj: Dict[int, List[Tuple[int, float]]] = defaultdict(list)
-        self.graph_dirty = True
-        self.dim = dim
-        self.max_neighbors = max_neighbors
         self._lock = threading.RLock()
-        self.last_lambda2 = 0.0
+        self._next_version = 1
+        self.chain_tip: str = "GENESIS"
 
-    def _raw_key(self, raw: bytes) -> bytes:
-        return hashlib.sha256(raw).digest()
+    def _raw_key(self, text: str) -> bytes:
+        return hashlib.sha256(text.encode("utf-8")).digest()
 
-    def _rebuild_graph(self):
-        self.adj.clear()
-        n = len(self._residuals)
-        if n < 2:
-            self.graph_dirty = False
-            return
-        for i in range(n):
-            sims = []
-            for j in range(n):
-                if i == j:
-                    continue
-                s = hamming_sim(self._residuals[i].sig, self._residuals[j].sig)
-                if s >= self._graph_similarity_threshold:
-                    sims.append((j, s))
-            sims.sort(key=lambda x: -x[1])
-            self.adj[i] = sims[:self.max_neighbors]
-        self.graph_dirty = False
+    def _compute_chain_hash(self, fragment: str, prev_hash: str, residual_id: str, timestamp: float) -> str:
+        payload = f"{prev_hash}|{residual_id}|{timestamp:.6f}|{fragment}".encode("utf-8")
+        return sha256_hex(payload)
 
-    def store(self, payload: str | bytes, kind: str = "text", domain: str = "general", metadata: Optional[Dict[str, Any]] = None) -> Residual:
+    def store(
+        self,
+        payload: Union[str, bytes],
+        domain: str = "general",
+        label: Optional[str] = None,
+        node_id: str = "unknown",
+        protect: bool = True,
+    ) -> Tuple[bool, str]:
+        """Store payload; returns (success, reason). Duplicate and short inputs are rejected."""
         with self._lock:
             if isinstance(payload, bytes):
-                normalized = base64.b64encode(payload).decode("ascii")
-                inferred_kind = "binary"
+                try:
+                    text = payload.decode("utf-8").strip()
+                except Exception:
+                    return False, "decode_fail"
             else:
-                normalized = payload
-                inferred_kind = kind
+                text = str(payload).strip()
+            if len(text) < 8:
+                return False, "too_short"
+            key = self._raw_key(text)
+            if key in self._exact_index:
+                return False, "duplicate"
 
-            tokens = tokenize_text(normalized)
-            created_at = time.time()
-            residual_id = hash_text(f"{inferred_kind}:{normalized}:{created_at}")
-            
-            # Bit signature
-            sig = bytes_to_bits(normalized.encode("utf-8") if isinstance(normalized, str) else normalized, dim=self.dim)
-            
-            residual = Residual(
-                residual_id=residual_id,
-                kind=inferred_kind,
-                payload=normalized,
-                tokens=tokens,
-                token_vector=Counter(tokens),
-                created_at=created_at,
-                sig=sig,
-                content_set=set(content_tokens(normalized)),
+            rid = hashlib.sha256(text.encode("utf-8")).hexdigest()[:16]
+            sig_packed = bytes_to_bits_packed(text.encode("utf-8"))
+            ts = time.time()
+            prev = self.chain_tip
+            chain_hash = self._compute_chain_hash(text, prev, rid, ts)
+
+            res = Residual(
+                fragment=text,
+                sig_packed=sig_packed,
+                content_set=set(content_tokens(text)),
                 domain=domain,
-                metadata=metadata or {},
+                timestamp=ts,
+                version=self._next_version,
+                node_id=node_id,
+                residual_id=rid,
+                prev_hash=prev,
+                chain_hash=chain_hash,
+                protect=protect,
             )
-            self._residuals.append(residual)
-            key = self._raw_key(normalized.encode("utf-8") if isinstance(normalized, str) else normalized)
-            self._exact_index[key] = len(self._residuals) - 1
-            self._domain_index[domain].append(len(self._residuals) - 1)
-            for t in residual.content_set:
-                self._token_index[t].append(len(self._residuals) - 1)
-            self.graph_dirty = True
-            return residual
+            idx = len(self.residuals)
+            self.residuals.append(res)
+            self._exact_index[key] = idx
+            self._domain_index[domain].append(idx)
+            for t in res.content_set:
+                self._token_index[t].append(idx)
+            self._next_version += 1
+            self.chain_tip = chain_hash
+            return True, "locked"
 
-    def rank(self, query: str, top_k: int = 5, use_mp: bool = True, mp_layers: int = 1, mp_alpha: float = 0.30) -> List[Tuple[Residual, float]]:
+    def verify_chain(self) -> Tuple[bool, str]:
+        """Verify the cryptographic hash chain; returns (ok, message)."""
         with self._lock:
-            if not self._residuals:
+            if not self.residuals:
+                return True, "empty chain ok"
+            expected_prev = "GENESIS"
+            for i, res in enumerate(self.residuals):
+                if res.prev_hash != expected_prev:
+                    return False, (
+                        f"break at index {i}: expected prev {expected_prev[:16]}..."
+                        f" got {res.prev_hash[:16]}..."
+                    )
+                recomputed = self._compute_chain_hash(
+                    res.fragment, res.prev_hash, res.residual_id, res.timestamp
+                )
+                if recomputed != res.chain_hash:
+                    return False, f"hash mismatch at index {i} (id={res.residual_id})"
+                expected_prev = res.chain_hash
+            if expected_prev != self.chain_tip:
+                return False, "chain tip does not match last residual"
+            return True, f"chain intact ({len(self.residuals)} residuals)"
+
+    def rank(self, query: str, domain: Optional[str] = None, top_k: int = 20) -> List[tuple]:
+        """Rank residuals by lexical + hamming similarity; returns list of (Residual, score)."""
+        with self._lock:
+            if not self.residuals:
                 return []
-            if self.graph_dirty:
-                self._rebuild_graph()
-            
-            probe = bytes_to_bits(query.encode("utf-8"), self.dim)
+            probe = packed_to_bits(bytes_to_bits_packed(query.encode("utf-8")))
             qset = set(content_tokens(query))
-            
-            candidate_idxs = set()
+            q_lower = query.lower().strip()
+            candidate_idxs: set = set()
             if qset:
                 for t in qset:
                     candidate_idxs.update(self._token_index.get(t, []))
-            if not candidate_idxs:
-                candidate_idxs = set(range(len(self._residuals)))
-            
-            base_scores = {}
+            if domain:
+                candidate_idxs.update(self._domain_index.get(domain, []))
+            if not candidate_idxs and not (qset or domain):
+                candidate_idxs = set(range(len(self.residuals)))
+            scores = []
             for i in candidate_idxs:
-                res = self._residuals[i]
-                r = hamming_sim(probe, res.sig)
+                res = self.residuals[i]
+                r = hamming_sim(probe, res.bits())
                 hits = sum(1 for t in qset if t in res.content_set) if qset else 0
                 coverage = hits / max(1, len(qset)) if qset else 0.0
-                score = 0.50 * r + 0.50 * coverage
+                score = 0.20 * r + 0.40 * coverage
+                frag_lower = res.fragment.lower()
+                exact_sub = bool(q_lower and q_lower in frag_lower)
+                if exact_sub:
+                    score += 0.55
+                elif any(t in frag_lower for t in qset if len(t) >= 3):
+                    score += 0.22
                 if hits >= 2:
-                    score += 0.12
-                if hits >= 3:
-                    score += 0.05
-                base_scores[i] = float(min(1.0, score))
-            
-            if use_mp and self.adj and mp_layers > 0:
-                scores = dict(base_scores)
-                for _ in range(mp_layers):
-                    new_scores = {}
-                    for i in scores:
-                        agg = wsum = 0.0
-                        for j, w in self.adj.get(i, []):
-                            if j in scores:
-                                agg += w * scores[j]
-                                wsum += w
-                        new_scores[i] = (1.0 - mp_alpha) * scores[i] + mp_alpha * (agg / wsum) if wsum > 0 else scores[i]
-                    scores = new_scores
-                final = [(self._residuals[i], s) for i, s in scores.items()]
-            else:
-                final = [(self._residuals[i], s) for i, s in base_scores.items()]
-            
-            final.sort(key=lambda x: -x[1])
-            return final[:top_k]
-
-    def compute_laplacian_spectrum(self, k: int = 5) -> Dict:
-        with self._lock:
-            if self.graph_dirty:
-                self._rebuild_graph()
-            n = len(self._residuals)
-            if n < 3:
-                return {"n": n, "lambda2": 0.0, "multiplicity0": n, "evals": []}
-            
-            rows, cols, data = [], [], []
-            for i, nbrs in self.adj.items():
-                for j, w in nbrs:
-                    rows += [i, j]
-                    cols += [j, i]
-                    data += [w, w]
-            
-            if not rows:
-                return {"n": n, "lambda2": 0.0, "multiplicity0": n, "evals": []}
-            
-            from scipy.sparse import csr_matrix
-            from scipy.sparse.linalg import eigsh
-            
-            A = csr_matrix((data, (rows, cols)), shape=(n, n))
-            degrees = np.array(A.sum(axis=1)).flatten()
-            D = csr_matrix((degrees, (range(n), range(n))), shape=(n, n))
-            L = D - A
-            
-            try:
-                evals = eigsh(L, k=min(k, n-1), which='SM', return_eigenvectors=False)
-                evals = np.sort(np.real(evals))
-                mult0 = int(np.sum(np.abs(evals) < 1e-6))
-                lambda2 = float(evals[1]) if len(evals) > 1 else 0.0
-                self.last_lambda2 = lambda2
-                return {"n": n, "lambda2": lambda2, "multiplicity0": mult0, "evals": [float(e) for e in evals[:k]]}
-            except Exception as e:
-                return {"n": n, "lambda2": 0.0, "multiplicity0": 0, "evals": [], "error": str(e)}
+                    score += 0.18
+                elif hits == 1:
+                    score += 0.08
+                if "::" in res.fragment:
+                    score += 0.08
+                if domain and res.domain == domain:
+                    score += 0.10
+                if res.protect:
+                    score += 0.02
+                lexical_signal = hits + (1 if exact_sub else 0)
+                if lexical_signal == 0:
+                    score *= 0.04
+                elif coverage < 0.15 and not exact_sub:
+                    score *= 0.35
+                scores.append((res, float(min(1.0, score))))
+            scores.sort(key=lambda x: -x[1])
+            return scores[:top_k]
 
     def status(self) -> Dict[str, Any]:
         with self._lock:
+            ok, msg = self.verify_chain()
             return {
-                "residual_count": len(self._residuals),
-                "graph_nodes": int(self._adjacency.shape[0]),
-                "graph_edges": int(np.count_nonzero(np.triu(self._adjacency, k=1))),
+                "residual_count": len(self.residuals),
+                "chain_ok": ok,
+                "chain_tip": self.chain_tip[:16] + "...",
             }
 
 
+# ============================================================
+# ENVELOPE AUTH (hub-style: nonce / iat / exp / kid / TTL / skew)
+# ============================================================
 class SecureNode:
+    """Lean node: instance methods for lock/project, static methods for envelope auth."""
+
+    def __init__(self, node_id: str, void: "CoherentVoid") -> None:
+        self.node_id = node_id
+        self.void = void
+        self.secret = void.secret
+        void.connect(node_id)
+
+    # ------------------------------------------------------------------
+    # Instance helpers
+    # ------------------------------------------------------------------
+    def lock_text(self, text: str, domain: str = "general", protect: bool = True) -> str:
+        """Lock text via envelope auth then pass verified payload into lean ingest."""
+        secret_str = self.secret if isinstance(self.secret, str) else self.secret.decode("utf-8")
+        envelope = SecureNode.lock_payload(text, secret=secret_str)
+        if not SecureNode.verify_payload(envelope, secret=secret_str):
+            return "auth_failed"
+        payload_bytes = text.encode("utf-8")
+        to_sign = payload_bytes + b"lock" + domain.encode()
+        secret_bytes = self.secret if isinstance(self.secret, bytes) else self.secret.encode("utf-8")
+        sig = sign_packet(to_sign, secret_bytes)
+        return self.void.ingest(
+            "lock", payload_bytes, domain=domain, source=self.node_id,
+            signature=sig, protect=protect,
+        )
+
+    def project(self, query: str, mode: str = "exact") -> str:
+        return self.void.project(query, mode=mode, source=self.node_id)
+
+    # ------------------------------------------------------------------
+    # Static envelope helpers (hub-style)
+    # ------------------------------------------------------------------
     @staticmethod
     def _kid(secret: str) -> str:
         return hashlib.sha256(secret.encode("utf-8")).hexdigest()[:16]
 
     @staticmethod
     def lock_payload(
-        payload: str | bytes,
+        payload: Union[str, bytes],
         secret: str,
         metadata: Optional[Dict[str, Any]] = None,
         ttl_seconds: int = 30,
@@ -428,7 +490,7 @@ class SecureNode:
             encoded_payload = payload
             kind = "text"
 
-        body = {
+        body: Dict[str, Any] = {
             "payload": encoded_payload,
             "kind": kind,
             "iat": now,
@@ -492,58 +554,132 @@ class SecureNode:
         return False
 
 
+# ============================================================
+# COHERENT VOID – lean dual-mode engine (exact / synthesize)
+# ============================================================
 class CoherentVoid:
-    def __init__(self, secret: str, min_project_score: float = 0.2) -> None:
-        self._secret = secret
-        self._field = CoherentField()
-        self._pending: Dict[str, Dict[str, Any]] = {}
-        self._min_project_score = min_project_score
+    """Lean void engine: permanent residuals, hash chain, strict refusal gates."""
+
+    _REFUSAL = "No locked residual in coherent void."
+
+    def __init__(
+        self,
+        name: str = "void",
+        secret: Union[str, bytes] = b"CHANGE-ME-32-BYTE-SECRET-KEY!!",
+        min_project_score: float = 0.58,
+        min_grounding: float = 0.35,
+    ) -> None:
+        self.name = name
+        # Normalise secret: keep both bytes and str forms available
+        if isinstance(secret, bytes):
+            self.secret: bytes = secret
+            self._secret: str = secret.decode("utf-8", errors="replace")
+        else:
+            self._secret = secret
+            self.secret = secret.encode("utf-8")
+        self.field = CoherentField()
+        self.min_score = min_project_score
+        self.min_grounding = min_grounding
         self._lock = threading.RLock()
+        self.lock_count = 0
+        self.project_count = 0
+        self.invention_refusals = 0
+        self.start_time = time.time()
+        self.connected: Dict[str, float] = {}
 
-    def authenticated_ingest_lock(self, payload: Dict[str, Any]) -> Optional[str]:
-        if not SecureNode.verify_payload(payload, self._secret):
-            return None
-
-        lock_id = hash_text(canonical_payload(payload))
+    def connect(self, system_id: str) -> str:
         with self._lock:
-            self._pending[lock_id] = payload
-        return lock_id
+            self.connected[system_id] = time.time()
+            return f"{system_id} connected"
 
-    def confirm(self, lock_id: str) -> Optional[Residual]:
+    def ingest(
+        self,
+        action: str,
+        payload: bytes,
+        domain: str = "general",
+        source: str = "unknown",
+        label: Optional[str] = None,
+        signature: Optional[bytes] = None,
+        protect: bool = True,
+    ) -> str:
+        """Authenticated ingest; action must be 'lock' or 'confirm'."""
         with self._lock:
-            payload = self._pending.pop(lock_id, None)
-        if payload is None:
-            return None
+            if action in ("lock", "confirm"):
+                if signature is None:
+                    return "auth_failed"
+                to_verify = payload + action.encode() + domain.encode()
+                if not verify_signature(to_verify, signature, self.secret):
+                    return "auth_failed"
+                ok, reason = self.field.store(
+                    payload, domain=domain, label=label, node_id=source, protect=protect
+                )
+                if ok:
+                    self.lock_count += 1
+                    return "locked"
+                return reason
+            return "ignored"
 
-        kind = payload.get("kind", "text")
-        content = payload.get("payload", "")
-        if kind == "binary":
-            decoded = base64.b64decode(content.encode("ascii"))
-            return self._field.store(decoded, kind=kind, metadata=payload.get("metadata") or {})
-        return self._field.store(str(content), kind=kind, metadata=payload.get("metadata") or {})
+    def project(self, query: str, mode: str = "exact", source: str = "user") -> str:
+        """Project query against locked residuals; returns fragment string or refusal."""
+        self.project_count += 1
+        ranked = self.field.rank(query)
+        if not ranked or ranked[0][1] < self.min_score:
+            self.invention_refusals += 1
+            return self._REFUSAL
+        q_lower = query.lower().strip()
+        qset = set(content_tokens(query))
+        if mode == "exact":
+            for res, score in ranked[:12]:
+                if q_lower and q_lower in res.fragment.lower() and score >= 0.50:
+                    return res.fragment
+            top_res, top_score = ranked[0]
+            hits = sum(1 for t in qset if t in top_res.content_set) if qset else 0
+            exact_sub = bool(q_lower and q_lower in top_res.fragment.lower())
+            if hits == 0 and not exact_sub:
+                self.invention_refusals += 1
+                return self._REFUSAL
+            if top_score < 0.62 and hits < 2 and not exact_sub:
+                self.invention_refusals += 1
+                return self._REFUSAL
+            return top_res.fragment
+        if mode == "synthesize":
+            top = []
+            seen: set = set()
+            for res, score in ranked[:8]:
+                if score < 0.60:
+                    break
+                hits = sum(1 for t in qset if t in res.content_set) if qset else 0
+                exact_sub = bool(q_lower and q_lower in res.fragment.lower())
+                if hits == 0 and not exact_sub:
+                    continue
+                frag = res.fragment.strip()
+                key = frag[:80].lower()
+                if key not in seen:
+                    seen.add(key)
+                    top.append(frag)
+                if len(top) >= 3:
+                    break
+            if not top:
+                self.invention_refusals += 1
+                return self._REFUSAL
+            return top[0] if len(top) == 1 else " || ".join(top)
+        return "Unknown mode"
 
-    def project(self, query: str, top_k: int = 3, require_grounding: bool = True) -> List[Tuple[Residual, float]]:
-        ranked = self._field.rank(query, top_k=top_k, use_mp=True)
-        if not ranked:
-            return []
-        if ranked[0][1] < self._min_project_score:
-            return []
-        if require_grounding and not self._is_grounded(ranked):
-            return []
-        return ranked
-
-    def _is_grounded(self, ranked) -> bool:
-        if not ranked:
-            return False
-        return any(score >= self._min_project_score for _, score in ranked)
+    def verify_integrity(self) -> Tuple[bool, str]:
+        """Verify hash chain integrity."""
+        return self.field.verify_chain()
 
     def status(self) -> Dict[str, Any]:
+        ok, msg = self.verify_integrity()
         return {
-            "pending_locks": len(self._pending),
-            "min_project_score": self._min_project_score,
-            "field": self._field.status(),
+            "void": self.name,
+            "locked": len(self.field.residuals),
+            "lock_count": self.lock_count,
+            "project_count": self.project_count,
+            "refusals": self.invention_refusals,
+            "chain_ok": ok,
+            "chain_msg": msg,
+            "chain_tip": self.field.chain_tip[:16] + "...",
+            "nodes": list(self.connected.keys()),
+            "uptime_sec": round(time.time() - self.start_time, 1),
         }
-
-    @property
-    def field(self) -> CoherentField:
-        return self._field

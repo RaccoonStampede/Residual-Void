@@ -1,81 +1,143 @@
 from __future__ import annotations
 
-import base64
-from typing import Any, Dict, Optional
+import threading
+from typing import Any, Dict, Optional, Tuple, Union
 
-from config_loader import ConfigValidationError, load_config, validate_config
-
-from .core import CoherentVoid, SecureNode
-from .mind import ResidualFieldMind
+from .core import CoherentVoid, Residual, SecureNode, canonical_payload, hash_text, sign_packet
 
 
 class ResidualVoid:
+    """Thin façade over lean CoherentVoid.
+
+    Exposes:
+    - lock / lock_and_confirm  – authenticated write path
+    - authenticated_ingest_lock / confirm – envelope two-step (backward-compat)
+    - project(mode="exact"|"synthesize")  – read path
+    - verify_integrity                    – hash-chain check
+    - status                              – runtime metrics
+    """
+
     def __init__(
         self,
         secret: Optional[str] = None,
         config: Optional[Dict[str, Any]] = None,
         config_path: Optional[str] = None,
+        name: str = "void",
     ) -> None:
-        loaded_config = config or load_config(config_path)
-        try:
-            validate_config(loaded_config)
-        except ConfigValidationError:
-            if loaded_config.get("environment") == "production":
-                raise
+        # Resolve secret from config if not provided directly
+        if secret is None:
+            try:
+                from config_loader import load_config
+                loaded = config or load_config(config_path)
+            except Exception:
+                loaded = config or {}
+            secret = (
+                loaded.get("security", {}).get("secret_key")
+                or "development-secret"
+            )
 
-        security = loaded_config.get("security", {})
-        resolved_secret = secret or security.get("secret_key") or "development-secret"
+        self._secret_str: str = secret
+        self._void = CoherentVoid(name=name, secret=secret)
+        self._pending: Dict[str, Dict[str, Any]] = {}
+        self._lock = threading.RLock()
 
-        self.config = loaded_config
-        self.surface = CoherentVoid(
-            secret=resolved_secret,
-            min_project_score=float(loaded_config.get("coherence", {}).get("quorum_size", 2)) / 10.0,
-        )
-        self.mind = ResidualFieldMind()
+    # ------------------------------------------------------------------
+    # Simple write path
+    # ------------------------------------------------------------------
+    def lock(self, text: str, domain: str = "general", protect: bool = True) -> str:
+        """Lock text directly via HMAC signature; returns 'locked' or error reason."""
+        node = SecureNode(f"__facade__{id(self)}", self._void)
+        return node.lock_text(text, domain=domain, protect=protect)
 
-    def authenticated_ingest_lock(self, payload: Dict[str, Any]) -> Optional[str]:
-        return self.surface.authenticated_ingest_lock(payload)
-
-    def confirm(self, lock_id: str):
-        residual = self.surface.confirm(lock_id)
-        if residual is None:
-            return None
-
-        if residual.kind == "binary":
-            self.mind.ingest_binary(base64.b64decode(residual.payload.encode("ascii")), metadata=residual.metadata)
-        else:
-            self.mind.ingest_text(residual.payload, metadata=residual.metadata)
-        return residual
-
-    def lock_and_confirm(self, payload: str | bytes, metadata: Optional[Dict[str, Any]] = None) -> bool:
-        packet = SecureNode.lock_payload(payload, self.surface._secret, metadata=metadata)
+    def lock_and_confirm(
+        self,
+        payload: Union[str, bytes],
+        metadata: Optional[Dict[str, Any]] = None,
+        domain: str = "general",
+        protect: bool = True,
+    ) -> bool:
+        """Envelope-based lock+confirm in one call; returns True on success."""
+        packet = SecureNode.lock_payload(payload, secret=self._secret_str, metadata=metadata)
         lock_id = self.authenticated_ingest_lock(packet)
         if not lock_id:
             return False
         return self.confirm(lock_id) is not None
 
-    def project(self, query: str, top_k: int = 3):
-        surface = self.surface.project(query, top_k=top_k, require_grounding=True)
-        if surface:
-            return {
-                "source": "surface",
-                "results": [
-                    {
-                        "payload": residual.payload,
-                        "score": float(score),
-                        "kind": residual.kind,
-                        "metadata": residual.metadata,
-                    }
-                    for residual, score in surface
-                ],
-            }
+    # ------------------------------------------------------------------
+    # Envelope two-step (backward-compat)
+    # ------------------------------------------------------------------
+    def authenticated_ingest_lock(self, envelope: Dict[str, Any]) -> Optional[str]:
+        """Validate envelope and register it for confirmation; returns lock_id or None."""
+        if not SecureNode.verify_payload(envelope, self._secret_str):
+            return None
+        lock_id = hash_text(canonical_payload(envelope))
+        with self._lock:
+            self._pending[lock_id] = envelope
+        return lock_id
 
-        geometry = self.mind.project(query, top_k=top_k)
-        return {"source": "geometry", "results": geometry}
+    def confirm(self, lock_id: str) -> Optional[Residual]:
+        """Commit a previously registered envelope; returns Residual or None."""
+        with self._lock:
+            envelope = self._pending.pop(lock_id, None)
+        if envelope is None:
+            return None
+
+        import base64
+        kind = envelope.get("kind", "text")
+        content = envelope.get("payload", "")
+        domain = envelope.get("metadata", {}).get("domain", "general")
+
+        if kind == "binary":
+            raw_bytes = base64.b64decode(content.encode("ascii"))
+            text_payload = raw_bytes
+        else:
+            text_payload = str(content).encode("utf-8")
+
+        # Build HMAC signature for lean ingest
+        to_sign = text_payload + b"lock" + domain.encode()
+        secret_bytes = self._void.secret
+        sig = sign_packet(to_sign, secret_bytes)
+        result = self._void.ingest(
+            "lock",
+            text_payload,
+            domain=domain,
+            source="facade",
+            signature=sig,
+        )
+        if result == "locked":
+            # Return the last stored residual as a Residual-like object
+            return self._void.field.residuals[-1] if self._void.field.residuals else None
+        return None
+
+    # ------------------------------------------------------------------
+    # Read path
+    # ------------------------------------------------------------------
+    def project(
+        self,
+        query: str,
+        mode: str = "exact",
+        top_k: int = 3,
+    ) -> Dict[str, Any]:
+        """Project query; returns dict with 'source' and 'results' list."""
+        result = self._void.project(query, mode=mode)
+        if result in (CoherentVoid._REFUSAL, "Unknown mode"):
+            return {"source": "void", "results": []}
+        return {"source": "void", "results": [{"payload": result, "score": 1.0}]}
+
+    # ------------------------------------------------------------------
+    # Integrity & status
+    # ------------------------------------------------------------------
+    def verify_integrity(self) -> Tuple[bool, str]:
+        return self._void.verify_integrity()
 
     def status(self) -> Dict[str, Any]:
-        return {
-            "environment": self.config.get("environment", "development"),
-            "surface": self.surface.status(),
-            "mind": self.mind.status(),
-        }
+        void_st = self._void.status()
+        return {"void": void_st, "pending_locks": len(self._pending)}
+
+    # ------------------------------------------------------------------
+    # Expose void reference for advanced use
+    # ------------------------------------------------------------------
+    @property
+    def void(self) -> CoherentVoid:
+        return self._void
+

@@ -1,5 +1,3 @@
-import base64
-
 from residual_void import ResidualNetworkManager, SecureNode
 
 
@@ -26,45 +24,14 @@ def test_key_rotation_with_grace_period_and_replay_protection(network_manager: R
     assert network_manager.validate_message("alpha", "secret-old", packet) is False
 
 
-def test_void_and_geometry_sync_preserve_binary_payloads(network_manager: ResidualNetworkManager) -> None:
-    runtime = network_manager.create_network("alpha", "secret-a")
-    packet = SecureNode.lock_payload(b"\x00\x01abc", secret="secret-a")
-    lock_id = runtime.authenticated_ingest_lock(packet)
-    residual = runtime.confirm(lock_id)
+def test_network_lock_and_project_lean(network_manager: ResidualNetworkManager) -> None:
+    """Lock text via a network node and project back through lean void."""
+    runtime = network_manager.create_network("lean_net", "lean-secret-abc123")
+    node = network_manager.add_node("lean_net", "node_a")
 
-    synced = network_manager.void_to_geometry_sync("alpha", "secret-a")
-    # The regression here was base64-encoding an already base64-encoded payload.
-    double_encoded = base64.b64encode(residual.payload.encode("ascii")).decode("ascii")
-    mind_values = [item["value"] for item in runtime.mind.geometry._data.values()]
+    result = node.lock_text("Lean network residual payload content alpha", domain="general")
+    assert result == "locked", f"Expected 'locked', got {result!r}"
 
-    assert synced == 1
-    assert residual.payload in mind_values
-    assert double_encoded not in mind_values
-
-
-def test_geometry_to_void_sync_and_cross_network_bridge(network_manager: ResidualNetworkManager) -> None:
-    source = network_manager.create_network("source", "secret-source")
-    target = network_manager.create_network("target", "secret-target")
-
-    packet = SecureNode.lock_payload("bridge signal alpha beta", secret="secret-source")
-    lock_id = source.authenticated_ingest_lock(packet)
-    source.confirm(lock_id)
-
-    bridged = network_manager.cross_network_bridge(
-        "source",
-        "secret-source",
-        "target",
-        "secret-target",
-        "bridge alpha",
-        top_k=2,
-    )
-
-    target.mind.geometry.store("echo from geometry alpha beta", coherence=0.96, domain="sync")
-    pushed = network_manager.geometry_to_void_sync("target", "secret-target", min_coherence=0.95)
-    projected = target.project("echo from geometry alpha")
-
-    assert bridged
-    assert any("bridge signal alpha beta" in item["payload"] for item in bridged)
-    assert pushed >= 1
-    assert projected["results"]
-    assert any("echo from geometry alpha beta" in item["payload"] for item in projected["results"])
+    projected = runtime.project("lean network residual", mode="exact")
+    assert projected["results"], "Expected project results"
+    assert "Lean network residual" in projected["results"][0]["payload"]
