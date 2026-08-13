@@ -1,10 +1,16 @@
+import sys
+from pathlib import Path
+
+# Add src directory to Python path so pytest can find residual_void modules
+sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
+
 import pytest
 import numpy as np
-from src.residual_void.core import CoherentVoid, SecureNode, hierarchical_edge_extract_v2, schumann_carrier
-from src.residual_void.geometry import ResidualGeometry, SHELL_LABELS
-from src.residual_void.mind import ResidualFieldMind
-from src.residual_void.merged import ResidualVoid
-from src.residual_void.network import ResidualNetworkManager
+from residual_void.core import CoherentVoid, SecureNode, hierarchical_edge_extract_v2, schumann_carrier
+from residual_void.geometry import ResidualGeometry, SHELL_LABELS
+from residual_void.mind import ResidualFieldMind
+from residual_void.merged import ResidualVoid
+from residual_void.network import ResidualNetworkManager
 
 
 @pytest.fixture
