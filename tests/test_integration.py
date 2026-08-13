@@ -1,4 +1,4 @@
-from residual_void import ResidualNetworkManager, SecureNode
+from residual_void import ResidualNetworkManager, ResidualVoid, SecureNode
 
 
 def test_end_to_end_lock_confirm_project_workflow(runtime) -> None:
@@ -71,3 +71,38 @@ def test_multi_network_integration_scenario(runtime_config) -> None:
     target_projection = target.project("network bridge")
     assert target_projection["source"] == "geometry"
     assert any("network bridge residual" in item["payload"] for item in target_projection["results"])
+
+
+def test_end_to_end_lock_confirm_project() -> None:
+    runtime = ResidualVoid(secret="test-secret-1234567890abcdef")
+
+    packet = SecureNode.lock_payload(
+        "Test residual content",
+        runtime.surface._secret,
+        metadata={"source": "test"},
+    )
+
+    lock_id = runtime.authenticated_ingest_lock(packet)
+    assert lock_id is not None
+
+    residual = runtime.surface.confirm(lock_id)
+    assert residual is not None
+    assert residual.payload == "Test residual content"
+
+    result = runtime.project("test residual", top_k=1)
+    assert result is not None
+    assert "results" in result
+
+
+def test_mind_grounding_validation() -> None:
+    runtime = ResidualVoid(secret="test-secret-1234567890abcdef")
+
+    runtime.mind.inject_rich(
+        "The field substrate is the foundation. Integration is key.",
+        passes=1,
+    )
+
+    response = runtime.mind.respond("field integration", show=False)
+    assert response is not None
+    assert "Voice:" in response
+    assert "Watcher:" in response
