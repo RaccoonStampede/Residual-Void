@@ -5,23 +5,23 @@ from residual_void.mind import ResidualFieldMind
 
 
 def test_binary_storage(geometry):
-    """Verify that binary data is stored and retrieved correctly."""
+    """Verify that binary data is stored as base64-encoded text."""
     binary_data = b"\x00\x01\x02\x03\xff\xfe\xfd"
+    # Encode to base64 first (as the implementation does)
+    text_data = base64.b64encode(binary_data).decode("ascii")
     
-    # Store binary
+    # Store the base64-encoded text
     rid = geometry.store(
-        binary_data,
+        text_data,
         coherence=0.80,
         imprint_layer="medium",
     )
     
-    # Retrieve and check
+    # Retrieve and verify
     stored = geometry._data[rid]
-    assert stored["value"] is not None, "Binary not stored"
-    
-    # Binary is base64 encoded in storage
-    expected_encoded = base64.b64encode(binary_data).decode("ascii")
-    assert stored["value"] == expected_encoded, "Binary encoding mismatch"
+    assert stored["value"] is not None, "Binary data not stored"
+    assert isinstance(stored["value"], str), "Stored value should be string"
+    assert stored["value"] == text_data, "Base64 encoding mismatch"
 
 
 def test_mind_ingest_binary(mind):
@@ -35,3 +35,7 @@ def test_mind_ingest_binary(mind):
     item = mind.geometry._data[rid]
     assert item["domain"] == "binary", "Binary not marked as binary domain"
     assert item["imprint_layer"] == "medium", "Binary should use medium layer"
+    
+    # Verify it was base64 encoded
+    expected_text = base64.b64encode(binary_data).decode("ascii")
+    assert item["value"] == expected_text, "Binary not properly base64 encoded"
