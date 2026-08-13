@@ -189,7 +189,7 @@ class ResidualFieldMind:
         self.autonomous_pulse(1)
         results = self.geometry.query(text, top_k=5)
         content = results[0][2]["value"] if results else "No locked residual signal."
-        query_tokens = set(tokenize_text(text))
+        query_tokens = set(t for t in tokenize_text(text) if len(t) > 2)
         
         # Compute grounding score
         rtoks = set(t for t in tokenize_text(content) if len(t) > 2)
