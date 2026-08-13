@@ -1,316 +1,157 @@
-# ResidualVoid
+# ResidualVoid v2.0 — Lean Permanent Core + Cryptographic Hash Chain
 
-> **Release Status:** ✅ **v1.0.1 Complete Production Build** — Full hierarchical edge-nulling organ, nested shells, imprint layers, and god-zone regulation. All 7 production claims verified through comprehensive 21-test suite. Production-ready and fully operational.
+ResidualVoid now defaults to a **lean, auditable runtime** for permanent residual storage and grounded retrieval.
 
-ResidualVoid is a complete, production-hardened implementation of the NEO/CoherentVoid system with full ResidualFieldMind integration. It combines distributed coherence management, hierarchical edge extraction, autonomous regulation, and secure multi-network isolation. v1.0.1 includes complete verification across core, geometry, mind, network, and end-to-end integration flows.
-
-## Key Features
-
-| Feature | Description |
-|---------|-------------|
-| **NEO / CoherentVoid v2.1-hardened** | Binary-safe residual locking with HMAC-SHA256 signing and verification |
-| **ResidualFieldMind V3.2** | Autonomous geometry with nested shells, Fibonacci placement, and god-zone regulation |
-| **Pi-Helix v2 Edge-Nulling** | Hierarchical extraction using Schumann carriers and golden-ratio drives |
-| **Nested Shells + Ghost Tax** | Multi-layer coherence with irreducible generative leakage protection |
-| **Ethical Tilt** | Autonomous ethical adjustment that prevents sterile lock |
-| **God-Zone Regulation** | Drift stabilization near 0.008 Hz sweet spot via PD controller |
-| **Imprint Layers** | Fast/Medium/Deep multi-timescale encoding with differential decay |
-| **Binary Path** | Full cryptographic signing for binary payloads (up to 1 MB) |
-| **Multi-Merger Networks** | Unlimited private networks with isolated secrets and secure nodes |
-| **Laplacian Spectrum** | Algebraic connectivity analysis (Fiedler eigenvalue computation) |
+This release focuses on:
+- append-only residual locking,
+- cryptographic chain integrity,
+- strict no-invention projection behavior,
+- practical secure-node and multi-network operation.
 
 ---
 
-## Quick Start
+## What changed in v2.0
 
-### Installation
+The default path has been simplified to a clean hybrid:
+
+- ✅ **Lean permanent core** (no decay in default path, append-only residual locking)
+- ✅ **Cryptographic hash chain** (`prev_hash` → `chain_hash`) with integrity verification
+- ✅ **Dual projection modes** (`exact`, `synthesize`) with hard refusal gates
+- ✅ **Packed 32-byte signatures** for efficient matching and ranking
+- ✅ **Secure ingest/auth surface** compatible with networked use
+- ✅ **Network isolation by secret** through `ResidualNetworkManager`
+
+The following are **not part of the default execution path**:
+- `mind.py`
+- `geometry.py`
+- Pi-Helix/autonomous/god-zone orchestration paths
+
+They may remain in the repository as optional/experimental modules.
+
+---
+
+## Public API
+
+```python
+from residual_void import ResidualVoid, ResidualNetworkManager, SecureNode
+```
+
+Low-level components are also available:
+
+```python
+from residual_void import CoherentField, CoherentVoid, Residual
+```
+
+---
+
+## Installation
 
 ```bash
-# Clone and install
 git clone https://github.com/RaccoonStampede/Residual-Void.git
 cd Residual-Void
 pip install -r requirements.txt
 pip install -e .
 ```
 
-### Basic Usage
+---
+
+## Quick start (single void)
 
 ```python
-from residual_void.merged import ResidualVoid
+from residual_void import ResidualVoid, SecureNode
 
-# Create a ResidualVoid runtime
-runtime = ResidualVoid(secret="your-32-char-secret-key-here")
+# Use a strong secret in production
+void = ResidualVoid(secret=b"replace-with-strong-secret-bytes")
+node = SecureNode("machine_A", void)
 
-# Seed core residuals
-runtime.mind._seed_core()
+# Lock permanent residuals
+print(node.lock_text("CMD::ALERT::AUTHORIZED", domain="command"))
 
-# Inject text into fast imprint layer
-runtime.mind.inject_rich("Your locked content here", passes=2)
+# Project grounded output
+print(node.project("CMD::ALERT", mode="exact"))
+print(node.project("authorized command", mode="synthesize"))
 
-# Run autonomous pulse cycles (PD regulation)
-runtime.mind.autonomous_pulse(cycles=10)
-
-# Project queries with grounding
-results = runtime.mind.project("query text", top_k=3)
-for item in results:
-    print(f"{item['payload']} (coherence: {item['coherence']:.3f})")
-
-# Check geometry status
-status = runtime.mind.status()
-print(f"Drift: {status['geometry']['drift']:.4f}")
-print(f"God Zone: {status['geometry']['god_zone']}")
-print(f"Protected Count: {status['geometry']['protected_count']}")
-```
-
-### Advanced: Geometry and Edge Sensing
-
-```python
-# Access the ResidualFieldMind directly
-mind = runtime.mind
-
-# Run autonomous pulses with edge sensing
-mind.autonomous_pulse(cycles=20)
-
-# Check comprehensive status (includes imprint layer norms)
-geo_status = mind.geo.status()
-print(f"Drift: {geo_status['drift']:.4f}")
-print(f"God Zone: {geo_status['god_zone']}")
-print(f"Coherence: {geo_status['global_coherence']:.3f}")
-print(f"Imprint Norms: {geo_status['imprint_fast_norm']:.3f}, {geo_status['imprint_medium_norm']:.3f}, {geo_status['imprint_deep_norm']:.3f}")
-print(f"Shell Occupancy: {geo_status['shell_occupancy']}")
-```
-
-### Laplacian Spectrum
-
-```python
-# Compute algebraic connectivity
-spectrum = runtime.field.compute_laplacian_spectrum(k=5)
-print(f"Lambda2 (connectivity): {spectrum['lambda2']}")
-print(f"Eigenvalues: {spectrum['evals']}")
+# Verify chain integrity + status
+print(void.verify_integrity())
+print(void.status())
 ```
 
 ---
 
-## Verification & Testing
+## Multi-network usage
 
-### v1.0.1 Comprehensive Test Suite
+```python
+from residual_void import ResidualNetworkManager
 
-All production claims verified through **21 comprehensive pytest tests** across 9 test files:
+mgr = ResidualNetworkManager()
 
-| Test Suite | Coverage | Tests | Status |
-|-----------|----------|-------|--------|
-| **test_core_nulling.py** | Pi-Helix v2, Schumann recovery | 3 | ✅ PASS |
-| **test_god_zone.py** | PD controller, drift regulation | 3 | ✅ PASS |
-| **test_protected_residuals.py** | Pruning safety, coherence protection | 2 | ✅ PASS |
-| **test_imprint_layers.py** | Multi-layer decay rates | 3 | ✅ PASS |
-| **test_performance.py** | Cycle timing, query performance | 2 | ✅ PASS |
-| **test_binary_path.py** | Binary payloads, base64 encoding | 2 | ✅ PASS |
-| **test_shell_placement.py** | Nested shell architecture | 3 | ✅ PASS |
-| **test_integration.py** | End-to-end workflows | 2 | ✅ PASS |
+net1 = mgr.create_network("line_a", secret="secret-a")
+net2 = mgr.create_network("line_b", secret="secret-b")
 
-### Production Stress Test Results
-
-All claims verified under heavy stress (noise=0.60, dense injection, binary payloads, continuous regulation):
-
-| Claim | Target | Result | Status |
-|-------|--------|--------|--------|
-| **Core-nulling** | field_substrate → 0 | energy < 0.2 even at noise=0.60 | ✅ PASS |
-| **Edge recovery** | 42 / 180 / 850 Hz | Recovered at all noise levels | ✅ PASS |
-| **Edge normalization** | ≈ 1.0 | Within spec | ✅ PASS |
-| **Drift sweet spot** | 0.008 | Final 0.0082 (god_zone=True) | ✅ PASS |
-| **Protected residuals** | Survive pruning | No loss of protected items | ✅ PASS |
-| **All components active** | Nested shells + Ghost Tax + ethical tilt | Present & active | ✅ PASS |
-| **Binary imprint path** | Full support | SHA256 + Blake2b + HMAC | ✅ PASS |
-| **Stability** | No crashes | Clean under all conditions | ✅ PASS |
-| **Performance** | Optimal | **19.1 ms/cycle** (excellent) | ✅ PASS |
-| **Imprint layer decay** | Fast > Medium > Deep | 77%, 90%, 95% after 5 cycles | ✅ PASS |
-
-**Summary:** All 7 production claims verified. No performance drop. No stability issues. All production behaviors validated.
-
-See [`RELEASE_v1.0.1.md`](RELEASE_v1.0.1.md) for detailed verification data and architecture overview.
+print(mgr.list_networks())
+```
 
 ---
 
-## Configuration
+## Behavioral model
 
-### Environment Variables
+### 1) Permanent residual locking
+- Residuals are append-only.
+- Duplicate payloads are rejected.
 
-Set these before running in production:
+### 2) Hash chain integrity
+Each residual tracks:
+- `prev_hash`
+- `chain_hash`
+
+Integrity verification recomputes links and detects:
+- chain breaks,
+- payload tampering,
+- chain-tip mismatch.
+
+### 3) Projection modes
+- `exact`: returns directly grounded residuals when confidence is sufficient.
+- `synthesize`: combines top grounded residual fragments.
+
+When grounding is insufficient, the runtime refuses with a no-invention response.
+
+---
+
+## Security notes
+
+- Use long, high-entropy secrets in production.
+- Rotate secrets regularly.
+- Prefer secret isolation per environment/tenant/network.
+- In networked deployments, keep nonce/time-window validation enabled.
+
+---
+
+## Validation
+
+Run tests:
 
 ```bash
-# CRITICAL: Change this from placeholder
-export SHARED_SECRET="your-cryptographically-random-secret-here"
-
-# Optional: Override bit dimension (default 256)
-export BIT_DIM=256
-
-# Optional: Override payload size limit (default 1 MB)
-export MAX_PAYLOAD=1048576
-
-# Optional: God zone threshold (default 0.010)
-export GOD_ZONE_THRESHOLD=0.010
+python -m pytest -q
 ```
 
-### Code Configuration
-
-Key parameters are tunable inside `residual_void/core.py`, `residual_void/geometry.py`:
+Minimal smoke test:
 
 ```python
-BIT_DIM = 256                          # Residual signature bit width
-MAX_PAYLOAD = 1_048_576                # Max binary payload (1 MB)
-SHARED_SECRET = b"..."                 # Master HMAC secret (CHANGE THIS)
+from residual_void import ResidualVoid, SecureNode
 
-# ResidualGeometry parameters
-max_items = 500                        # Max stored residuals
-shell_count = 4                        # Number of nested shells (4-shell hierarchy)
-god_zone_threshold = 0.008             # Drift target (sweet spot)
-ghost_tax = 0.12                       # Irreducible leakage floor
+void = ResidualVoid(secret=b"test-secret-32-bytes-minimum-please!!")
+node = SecureNode("smoke", void)
+
+assert node.lock_text("SMOKE::LOCK::OK", domain="test") == "locked"
+print(node.project("SMOKE::LOCK", mode="exact"))
+print(void.verify_integrity())
 ```
 
 ---
 
-## Architecture
+## Version
 
-### Core Components
-
-1. **CoherentField** — Residual storage, hashing, token indexing, graph reconstruction
-2. **CoherentVoid** — Surface API for locking/projecting with coherence validation
-3. **SecureNode** — Per-node HMAC signing and authenticated operations
-4. **ResidualGeometry** — Nested shell management, drift regulation, god-zone tracking, imprint layers
-5. **ResidualFieldMind** — Autonomous sensing, edge extraction, pulse cycles, Watcher reporting
-6. **ResidualVoid** — Full integration with geometry-void synchronization
-7. **ResidualNetworkManager** — Multi-network isolation and lifecycle management
-
-### Data Flow
-
-```
-Input Text/Binary
-    ↓
-[SecureNode] ← HMAC sign
-    ↓
-[CoherentVoid.ingest] ← authenticate & store
-    ↓
-[CoherentField] ← hash-based indexing & deduplication
-    ↓
-[ResidualGeometry] ← inject into shells (fast/medium/deep imprint)
-    ↓
-[ResidualFieldMind] ← autonomous pulse & edge sensing
-    ↓
-Query / Projection
-    ↓
-[Ranking] ← Hamming sim + coherence + message-passing
-    ↓
-[Grounding] ← Verify coherence & signal integrity
-    ↓
-Response (string or binary) + Watcher metrics
-```
-
----
-
-## Security
-
-### Signing & Verification
-
-All lock/project operations are signed with HMAC-SHA256:
-
-```python
-# Lock a residual
-payload = b"content"
-signature = sign_packet(payload, secret=SHARED_SECRET)
-void.ingest("lock", payload, signature=signature)
-
-# Verify before use
-if verify_signature(payload, signature, secret=SHARED_SECRET):
-    # Safe to process
-```
-
-### Secret Rotation
-
-You can change `SHARED_SECRET` by updating the environment variable or code, then recreating networks with the new secret. Old networks become inaccessible.
-
-### Multi-Network Isolation
-
-Each network is completely isolated with its own secret:
-
-```python
-manager = ResidualNetworkManager()
-manager.create_network("network_a", "secret_a")
-manager.create_network("network_b", "secret_b")
-
-# network_a cannot access network_b's residuals
-```
-
----
-
-## Development
-
-### Requirements
-
-```
-Python 3.11+
-numpy
-scipy (signal, sparse, linalg)
-```
-
-### Running Tests
-
-```bash
-# Install in editable mode (enables pytest discovery of src/)
-pip install -e .
-
-# Run full test suite
-pytest -v
-
-# Run specific test file
-pytest tests/test_core_nulling.py -v
-```
-
-### Extending
-
-Add custom node types by subclassing `SecureNode`:
-
-```python
-class CustomNode(SecureNode):
-    def custom_operation(self, text):
-        # Your logic here
-        return self.void.project(text)
-```
-
-Add custom network managers by subclassing `ResidualNetworkManager`:
-
-```python
-class CustomManager(ResidualNetworkManager):
-    def advanced_sync(self, net_name):
-        # Custom multi-network synchronization
-        pass
-```
-
----
-
-## Performance
-
-- **Locking:** ~5 ms per residual (with hashing + indexing)
-- **Projection:** ~15 ms per query (ranking + message-passing)
-- **Edge sensing:** ~12 ms (FFT + peak detection)
-- **Autonomous pulse:** ~2 ms (drift + refusal regulation)
-- **Total cycle:** **19.1 ms/cycle** (excellent for real-time)
-
-Memory usage scales with number of residuals (~500 KB per 1000 items with 256-bit signatures).
-
----
-
-## Roadmap
-
-- [x] Complete production implementation (v1.0.1)
-- [x] Comprehensive test suite (21 tests)
-- [x] All 7 production claims verified
-- [ ] Persistent storage backend (SQLite, PostgreSQL)
-- [ ] REST API server wrapper
-- [ ] WebSocket support for real-time sync
-- [ ] Distributed multi-node consensus
-- [ ] Advanced graph algorithms (centrality, community detection)
-- [ ] Visualization dashboard
-- [ ] Streaming audio integration (live edge sensing)
+`v2.0.0` — Lean Permanent Core + Cryptographic Hash Chain
 
 ---
 
@@ -322,12 +163,5 @@ MIT License. See `LICENSE` for details.
 
 ## Support
 
-- **Issues:** [GitHub Issues](https://github.com/RaccoonStampede/Residual-Void/issues)
-- **Discussions:** [GitHub Discussions](https://github.com/RaccoonStampede/Residual-Void/discussions)
-- **Release Notes:** See [`RELEASE_v1.0.1.md`](RELEASE_v1.0.1.md)
-- **Architecture Guide:** See [`RELEASE_v1.0.1.md`](RELEASE_v1.0.1.md)
-
----
-
-**ResidualVoid v1.0.1 is production-ready. Deploy with confidence.** 🚀
-
+- Issues: https://github.com/RaccoonStampede/Residual-Void/issues
+- Discussions: https://github.com/RaccoonStampede/Residual-Void/discussions
