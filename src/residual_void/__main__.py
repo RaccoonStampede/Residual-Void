@@ -19,7 +19,7 @@ def main(argv: Optional[list[str]] = None) -> int:
     runtime = ResidualVoid(config_path=args.config)
 
     if args.demo:
-        packet = SecureNode.lock_payload("hello residual void", secret=runtime.surface._secret)
+        packet = SecureNode.lock_payload("hello residual void", secret=runtime._secret_str)
         lock_id = runtime.authenticated_ingest_lock(packet)
         if lock_id:
             runtime.confirm(lock_id)
