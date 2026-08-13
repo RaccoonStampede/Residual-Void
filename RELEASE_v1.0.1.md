@@ -84,8 +84,8 @@
    - ✅ Mind.ingest_* methods use correct layers
 
 5. **test_performance.py** (2 tests)
-   - ✅ 20 cycles (sense_edge + pulse) < 1.0s
-   - ✅ 10 queries (100 items) < 500ms
+   - ✅ 20 cycles (sense_edge + pulse) < 2.0s
+   - ✅ 10 queries (100 items) < 1.0s
 
 6. **test_binary_path.py** (2 tests)
    - ✅ Binary data stored + base64 encoded
@@ -185,7 +185,7 @@ print(response)
 - `src/residual_void/network.py` — Multi-merger networks
 - `src/residual_void/merged.py` — ResidualVoid orchestration
 - `tests/conftest.py` — Shared pytest fixtures
-- `tests/test_*.py` (9 files) — 21 comprehensive verification tests
+- `tests/test_*.py` (8 files) — 24 comprehensive verification tests
 - `README.md` — Architecture guide
 - `RELEASE.md` — Hard stress test results (previous)
 
@@ -219,7 +219,7 @@ print(response)
 
 ## Commit History (v1.0.1)
 
-- **ad9909b** — Production test suite (21 tests, 9 files)
+- **ad9909b** — Production test suite (24 tests, 8 files)
 - **f0e6929** — Complete ResidualFieldMind (core seeding, Watcher)
 - **2015a31** — Complete ResidualGeometry (PD controller, imprint layers, shells)
 - **3d4e54a** — ResidualNetworkManager (sync, bridging)
