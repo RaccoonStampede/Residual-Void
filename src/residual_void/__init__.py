@@ -1,4 +1,4 @@
-"""ResidualVoid – Unified Production Runtime v2.1
+"""ResidualVoid – Unified Production Runtime v2.2
 
 Default runtime: hierarchical edge-nulling Pi-Helix, nested geometric shells,
 Fibonacci placement, hierarchical message-passing (Laplacian/Fiedler),
