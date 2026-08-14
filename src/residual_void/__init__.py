@@ -22,6 +22,13 @@ from .merged import ResidualVoid
 from .network import ResidualNetworkManager
 from .ingestion import auto_segment, inject_document
 from .persistence import PersistentVoid
+from .server import (
+    connect_to_residualvoid,
+    create_http_server,
+    discover_and_connect,
+    serve_residual_void,
+    start_mdns_advertisement,
+)
 
 __version__ = "2.2.0"
 __all__ = [
@@ -39,6 +46,11 @@ __all__ = [
     "pi_helix_drive",
     "auto_segment",
     "inject_document",
+    "create_http_server",
+    "serve_residual_void",
+    "start_mdns_advertisement",
+    "discover_and_connect",
+    "connect_to_residualvoid",
 ]
 
 

@@ -8,6 +8,7 @@ from . import __version__
 from .core import SecureNode
 from .merged import ResidualVoid
 from .network import ResidualNetworkManager
+from .server import serve_residual_void
 
 
 def main(argv: Optional[list[str]] = None) -> int:
@@ -21,6 +22,14 @@ def main(argv: Optional[list[str]] = None) -> int:
         "--network-demo",
         action="store_true",
         help="Run a multi-network smoke demo via ResidualNetworkManager",
+    )
+    parser.add_argument("--serve", action="store_true", help="Run HTTP service")
+    parser.add_argument("--host", default="0.0.0.0", help="HTTP bind host for --serve")
+    parser.add_argument("--port", type=int, default=7700, help="HTTP bind port for --serve")
+    parser.add_argument(
+        "--service-name",
+        default="ResidualVoid",
+        help="mDNS service instance name for --serve",
     )
     args = parser.parse_args(argv)
 
@@ -38,6 +47,15 @@ def main(argv: Optional[list[str]] = None) -> int:
         return 0
 
     runtime = ResidualVoid(config_path=args.config)
+
+    if args.serve:
+        serve_residual_void(
+            host=args.host,
+            port=args.port,
+            runtime=runtime,
+            service_name=args.service_name,
+        )
+        return 0
 
     if args.demo:
         packet = SecureNode.lock_payload("hello residual void", secret=runtime._secret_str)
