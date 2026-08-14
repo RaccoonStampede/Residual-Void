@@ -940,6 +940,62 @@ def create_standalone_system(secret: str = "standalone-secret-32bytes-minimum!!"
     void = ResidualVoid(secret=secret, name="standalone")
     return MultiAgentCoordinator(void)
 
+
+def _residual_agent_lock_compat(
+    self,
+    text: str,
+    domain: Optional[str] = None,
+    protect: bool = True,
+) -> str:
+    domain = domain or self.default_domain
+    attributed = f"{domain}::{self.agent_id.upper()}::{text}"
+    try:
+        result = self.node.lock_text(
+            attributed,
+            domain=domain,
+            protect=protect,
+            imprint_layer="deep",
+            coherence=0.95,
+        )
+    except TypeError:
+        result = self.node.lock_text(attributed, domain=domain)
+    if result == "locked":
+        self.history.append(attributed)
+    return result
+
+
+def _residual_agent_project_compat(self, query: str, mode: str = "synthesize") -> str:
+    try:
+        return self.node.project(query, mode=mode)
+    except TypeError:
+        return self.node.project(query)
+
+
+def _multi_agent_create_agent_compat(
+    self,
+    agent_id: str,
+    default_domain: str = "agent",
+) -> ResidualAgent:
+    if agent_id in self.agents:
+        return self.agents[agent_id]
+    agent = ResidualAgent(agent_id, getattr(self.void, "void", self.void), default_domain=default_domain)
+    self.agents[agent_id] = agent
+    return agent
+
+
+def _create_standalone_system_compat(
+    secret: str = "standalone-secret-32bytes-minimum!!",
+) -> MultiAgentCoordinator:
+    secret_value = secret.encode("utf-8") if isinstance(secret, str) else secret
+    void = ResidualVoid(secret=secret_value, name="standalone")
+    return MultiAgentCoordinator(void)
+
+
+ResidualAgent.lock = _residual_agent_lock_compat
+ResidualAgent.project = _residual_agent_project_compat
+MultiAgentCoordinator.create_agent = _multi_agent_create_agent_compat
+create_standalone_system = _create_standalone_system_compat
+
 # ============================================================
 # QUICK SELF-TEST
 # ============================================================
