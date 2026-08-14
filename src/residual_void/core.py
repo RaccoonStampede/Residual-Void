@@ -11,7 +11,7 @@ import time
 import uuid
 from collections import Counter, defaultdict
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Set, Tuple, Union
 
 import numpy as np
 from scipy.fft import rfft, rfftfreq
@@ -22,6 +22,20 @@ _STOP_TOKENS = set(
     "a an the of to in for on with is are was were be been being it this that "
     "these those and or but if as at by from into over after before about".split()
 )
+PHASE_OFFSET = 0.173
+PHRASE_ANCHORS = {
+    "diagnose": {"cause", "why", "diagnose", "symptom", "problem", "issue"},
+    "quantity": {"how many", "count", "amount", "number", "total"},
+    "conceptual": {"what is", "explain", "define", "meaning", "concept"},
+    "tightness": {"exact", "specific", "strict", "verbatim", "literal"},
+}
+PHRASE_BRIDGES = {
+    "treat": {"manage", "therapy", "care"},
+    "diagnose": {"identify", "determine"},
+    "heat": {"overheat", "hot", "temperature"},
+    "storm": {"hurricane", "cyclone", "weather"},
+    "count": {"number", "quantity", "many"},
+}
 
 
 def tokenize_text(text: str) -> List[str]:
@@ -35,6 +49,163 @@ def tokenize(text: str) -> List[str]:
 def content_tokens(text: str) -> List[str]:
     """Extract meaningful tokens (stopwords filtered)."""
     return [t for t in tokenize(text) if t not in _STOP_TOKENS and len(t) > 2]
+
+
+def _stem_token(token: str) -> str:
+    t = token.lower()
+    for suffix in ("ing", "edly", "edly", "ed", "ies", "es", "s", "ment"):
+        if t.endswith(suffix) and len(t) > len(suffix) + 2:
+            if suffix == "ies":
+                return t[:-3] + "y"
+            return t[:-len(suffix)]
+    return t
+
+
+def _levenshtein(a: str, b: str) -> int:
+    if a == b:
+        return 0
+    if not a:
+        return len(b)
+    if not b:
+        return len(a)
+    prev = list(range(len(b) + 1))
+    for i, ca in enumerate(a, start=1):
+        cur = [i]
+        for j, cb in enumerate(b, start=1):
+            ins = cur[j - 1] + 1
+            dele = prev[j] + 1
+            sub = prev[j - 1] + (0 if ca == cb else 1)
+            cur.append(min(ins, dele, sub))
+        prev = cur
+    return prev[-1]
+
+
+def _jaro_winkler(a: str, b: str) -> float:
+    if a == b:
+        return 1.0
+    if not a or not b:
+        return 0.0
+    max_dist = max(len(a), len(b)) // 2 - 1
+    a_match = [False] * len(a)
+    b_match = [False] * len(b)
+    matches = 0
+    transpositions = 0
+    for i, ca in enumerate(a):
+        start = max(0, i - max_dist)
+        end = min(i + max_dist + 1, len(b))
+        for j in range(start, end):
+            if b_match[j] or b[j] != ca:
+                continue
+            a_match[i] = b_match[j] = True
+            matches += 1
+            break
+    if matches == 0:
+        return 0.0
+    j = 0
+    for i in range(len(a)):
+        if not a_match[i]:
+            continue
+        while j < len(b) and not b_match[j]:
+            j += 1
+        if j < len(b) and a[i] != b[j]:
+            transpositions += 1
+        j += 1
+    transpositions /= 2
+    jaro = (
+        (matches / len(a)) + (matches / len(b)) + ((matches - transpositions) / matches)
+    ) / 3.0
+    prefix = 0
+    for ca, cb in zip(a, b):
+        if ca == cb and prefix < 4:
+            prefix += 1
+        else:
+            break
+    return jaro + 0.1 * prefix * (1 - jaro)
+
+
+def fuzzy_token_hits(query_tokens: Set[str], candidate_tokens: Set[str]) -> float:
+    if not query_tokens or not candidate_tokens:
+        return 0.0
+    score = 0.0
+    for qt in query_tokens:
+        if qt in candidate_tokens:
+            score += 1.0
+            continue
+        qstem = _stem_token(qt)
+        best = 0.0
+        for ct in candidate_tokens:
+            if qstem == _stem_token(ct):
+                best = max(best, 0.92)
+            dist = _levenshtein(qt, ct)
+            lev = 1.0 - dist / max(len(qt), len(ct), 1)
+            jw = _jaro_winkler(qt, ct)
+            best = max(best, lev * 0.55 + jw * 0.45)
+        if best >= 0.78:
+            score += best
+    return score / max(1, len(query_tokens))
+
+
+def classify_intent(query: str) -> str:
+    q = query.lower().strip()
+    for intent, anchors in PHRASE_ANCHORS.items():
+        if any(a in q for a in anchors):
+            return intent
+    return "general"
+
+
+def question_frequency(text: str) -> float:
+    if not text:
+        return 0.0
+    qm = text.count("?")
+    words = max(1, len(tokenize_text(text)))
+    return min(1.0, qm / words * 8.0)
+
+
+def text_to_frequencies(text: str) -> Dict[str, float]:
+    toks = content_tokens(text)
+    if not toks:
+        return {}
+    counts = Counter(_stem_token(t) for t in toks)
+    total = float(sum(counts.values()))
+    return {k: v / total for k, v in counts.items()}
+
+
+def resonance_score(freqs_a: Dict[str, float], freqs_b: Dict[str, float]) -> float:
+    if not freqs_a or not freqs_b:
+        return 0.0
+    base = cosine_similarity(Counter(freqs_a), Counter(freqs_b))
+    offset = (math.sin((base + PHASE_OFFSET) * math.pi) + 1.0) / 2.0
+    return float(0.75 * base + 0.25 * offset)
+
+
+@dataclass
+class RealityCore:
+    vibration: float = 0.0
+    coherence: float = 0.5
+    steps: int = 0
+    last_update: float = field(default_factory=time.time)
+
+    def step(self, signal: float, intent: str = "general") -> float:
+        self.steps += 1
+        gain = 1.1 if intent in {"diagnose", "quantity"} else 1.0
+        self.vibration = 0.8 * self.vibration + 0.2 * signal * gain
+        self.coherence = float(np.clip(0.85 * self.coherence + 0.15 * abs(signal), 0.0, 1.0))
+        self.last_update = time.time()
+        return float(np.clip(0.5 * self.vibration + 0.5 * self.coherence, 0.0, 1.0))
+
+
+def format_intent_answer(candidates: List[str], intent: str) -> str:
+    if not candidates:
+        return ""
+    if intent == "quantity":
+        return candidates[0]
+    if intent == "tightness":
+        return candidates[0]
+    if intent == "diagnose":
+        return " ".join(candidates[:2]).strip()
+    if intent == "conceptual":
+        return " || ".join(candidates[:3]).strip()
+    return candidates[0] if len(candidates) == 1 else " || ".join(candidates[:3]).strip()
 
 
 def cosine_similarity(vec_a: Counter, vec_b: Counter) -> float:
@@ -265,6 +436,12 @@ class Residual:
     prev_hash: str
     chain_hash: str
     protect: bool = True
+    shell: int = 0
+    imprint_layer: str = "fast"
+    coherence: float = 0.85
+    value: float = 0.0
+    freqs: Dict[str, float] = field(default_factory=dict)
+    core: Optional[RealityCore] = None
     _sig_bits: np.ndarray = field(default=None, repr=False, compare=False)
 
     def bits(self) -> np.ndarray:
@@ -309,6 +486,12 @@ class CoherentField:
         label: Optional[str] = None,
         node_id: str = "unknown",
         protect: bool = True,
+        shell: int = 0,
+        imprint_layer: str = "fast",
+        coherence: float = 0.85,
+        value: float = 0.0,
+        freqs: Optional[Dict[str, float]] = None,
+        core: Optional[RealityCore] = None,
     ) -> Tuple[bool, str]:
         """Store payload; returns (success, reason). Duplicate and short inputs are rejected."""
         with self._lock:
@@ -343,6 +526,12 @@ class CoherentField:
                 prev_hash=prev,
                 chain_hash=chain_hash,
                 protect=protect,
+                shell=shell,
+                imprint_layer=imprint_layer,
+                coherence=float(np.clip(coherence, 0.0, 1.0)),
+                value=float(value),
+                freqs=freqs or text_to_frequencies(text),
+                core=core,
             )
             idx = len(self.residuals)
             self.residuals.append(res)
@@ -376,49 +565,104 @@ class CoherentField:
                 return False, "chain tip does not match last residual"
             return True, f"chain intact ({len(self.residuals)} residuals)"
 
+    def _primary_tag_hit(self, query: str, fragment: str) -> bool:
+        q_tags = [t for t in query.split() if "::" in t]
+        if not q_tags:
+            return False
+        frag_lower = fragment.lower()
+        return any(tag.lower() in frag_lower for tag in q_tags)
+
+    def _bridge_hits(self, qset: Set[str], cset: Set[str]) -> int:
+        hits = 0
+        for qt in qset:
+            mapped = PHRASE_BRIDGES.get(qt, set())
+            if mapped & cset:
+                hits += 1
+        return hits
+
     def rank(self, query: str, domain: Optional[str] = None, top_k: int = 20) -> List[tuple]:
-        """Rank residuals by lexical + hamming similarity; returns list of (Residual, score)."""
+        """Rank residuals with lexical, fuzzy, resonance, and value-aware heuristics."""
         with self._lock:
             if not self.residuals:
                 return []
             probe = packed_to_bits(bytes_to_bits_packed(query.encode("utf-8")))
             qset = set(content_tokens(query))
             q_lower = query.lower().strip()
+            qfreq = text_to_frequencies(query)
+            q_intent = classify_intent(query)
             candidate_idxs: set = set()
             if qset:
                 for t in qset:
                     candidate_idxs.update(self._token_index.get(t, []))
             if domain:
                 candidate_idxs.update(self._domain_index.get(domain, []))
-            if not candidate_idxs and not (qset or domain):
+            if not candidate_idxs:
                 candidate_idxs = set(range(len(self.residuals)))
             scores = []
             for i in candidate_idxs:
                 res = self.residuals[i]
                 r = hamming_sim(probe, res.bits())
                 hits = sum(1 for t in qset if t in res.content_set) if qset else 0
+                fuzzy_hits = fuzzy_token_hits(qset, res.content_set) if qset else 0.0
+                bridge_hits = self._bridge_hits(qset, res.content_set)
                 coverage = hits / max(1, len(qset)) if qset else 0.0
-                score = 0.20 * r + 0.40 * coverage
+                resonance = resonance_score(qfreq, res.freqs)
+                score = (
+                    0.14 * r
+                    + 0.24 * coverage
+                    + 0.20 * fuzzy_hits
+                    + 0.16 * resonance
+                    + 0.08 * min(1.0, res.value)
+                )
                 frag_lower = res.fragment.lower()
                 exact_sub = bool(q_lower and q_lower in frag_lower)
                 if exact_sub:
                     score += 0.55
                 elif any(t in frag_lower for t in qset if len(t) >= 3):
                     score += 0.22
+                if self._primary_tag_hit(query, res.fragment):
+                    score += 0.16
                 if hits >= 2:
                     score += 0.18
                 elif hits == 1:
                     score += 0.08
+                if bridge_hits:
+                    score += min(0.16, bridge_hits * 0.06)
                 if "::" in res.fragment:
                     score += 0.08
                 if domain and res.domain == domain:
                     score += 0.10
                 if res.protect:
                     score += 0.02
+                length_penalty = 0.0
+                frag_len = len(res.fragment)
+                if frag_len > 800:
+                    length_penalty += 0.16
+                elif frag_len > 400:
+                    length_penalty += 0.08
+                if "full" == q_intent and frag_len > 250:
+                    length_penalty += 0.1
+                density = hits / max(1, len(res.content_set))
+                score += min(0.12, density * 0.4)
+                specificity = len([t for t in res.content_set if len(t) > 5]) / max(1, len(res.content_set))
+                score += min(0.1, specificity * 0.18)
+                key_nouns = sum(1 for t in qset if len(t) > 4 and t in res.content_set)
+                score += min(0.08, key_nouns * 0.03)
+                if any(t in q_lower for t in ("how many", "count", "amount")):
+                    if re.search(r"\b\d+(\.\d+)?\b", res.fragment):
+                        score += 0.14
+                if any(t in q_lower for t in ("why", "cause", "because", "reason")):
+                    if any(k in frag_lower for k in ("because", "due to", "caused", "therefore")):
+                        score += 0.12
+                if any(t in q_lower for t in ("diagnose", "symptom", "treat")):
+                    if any(k in frag_lower for k in ("symptom", "diagnose", "treat", "treatment")):
+                        score += 0.10
+                score -= length_penalty
+                score += float(np.clip(res.value, -0.2, 0.2))
                 lexical_signal = hits + (1 if exact_sub else 0)
                 if lexical_signal == 0:
                     score *= 0.04
-                elif coverage < 0.15 and not exact_sub:
+                elif coverage < 0.15 and fuzzy_hits < 0.3 and not exact_sub:
                     score *= 0.35
                 scores.append((res, float(min(1.0, score))))
             scores.sort(key=lambda x: -x[1])
@@ -586,6 +830,7 @@ class CoherentVoid:
         self.invention_refusals = 0
         self.start_time = time.time()
         self.connected: Dict[str, float] = {}
+        self._query_log_limit = 3000
 
     def connect(self, system_id: str) -> str:
         with self._lock:
@@ -619,9 +864,41 @@ class CoherentVoid:
                 return reason
             return "ignored"
 
+    def _log_query(self, query: str, source: str = "user") -> None:
+        ok, _ = self.field.store(
+            query,
+            domain="query",
+            node_id=source,
+            protect=True,
+            shell=0,
+            imprint_layer="fast",
+            coherence=0.99,
+            value=0.0,
+            freqs=text_to_frequencies(query),
+        )
+        if ok and len(self.field._domain_index.get("query", [])) > self._query_log_limit:
+            # Bound query-chain index growth while preserving append-only residual history.
+            self.field._domain_index["query"] = self.field._domain_index["query"][-self._query_log_limit:]
+
+    def _vibrate_residuals(self, ranked: List[Tuple[Residual, float]], intent: str) -> List[Tuple[Residual, float]]:
+        vibrated: List[Tuple[Residual, float]] = []
+        for res, score in ranked:
+            core = res.core or RealityCore()
+            vib = core.step(score, intent=intent)
+            res.core = core
+            adjusted = float(np.clip(score * 0.82 + vib * 0.18, 0.0, 1.0))
+            vibrated.append((res, adjusted))
+        vibrated.sort(key=lambda x: -x[1])
+        return vibrated
+
+    def _bellman_update(self, winners: List[Residual], reward: float = 0.06) -> None:
+        for res in winners:
+            res.value = float(np.clip(0.88 * res.value + reward, -1.0, 1.0))
+
     def project(self, query: str, mode: str = "exact", source: str = "user") -> str:
         """Project query against locked residuals; returns fragment string or refusal."""
         self.project_count += 1
+        self._log_query(query, source=source)
         ranked = self.field.rank(query)
         if not ranked or ranked[0][1] < self.min_score:
             self.invention_refusals += 1
@@ -643,26 +920,62 @@ class CoherentVoid:
                 return self._REFUSAL
             return top_res.fragment
         if mode == "synthesize":
-            top = []
-            seen: set = set()
-            for res, score in ranked[:8]:
-                if score < 0.60:
-                    break
-                hits = sum(1 for t in qset if t in res.content_set) if qset else 0
-                exact_sub = bool(q_lower and q_lower in res.fragment.lower())
-                if hits == 0 and not exact_sub:
+            intent = classify_intent(query)
+            recover = self.field.rank(query, top_k=32)
+            candidates = recover[:16]
+            if qset:
+                for res, score in recover[16:28]:
+                    if score < 0.38:
+                        continue
+                    if fuzzy_token_hits(qset, res.content_set) >= 0.44:
+                        candidates.append((res, score))
+            if not candidates:
+                self.invention_refusals += 1
+                return self._REFUSAL
+            candidates = self._vibrate_residuals(candidates, intent)
+            preconceptual = []
+            others = []
+            for res, score in candidates:
+                if res.imprint_layer in {"deep", "medium"} and res.coherence >= 0.88:
+                    preconceptual.append((res, score + 0.03))
+                else:
+                    others.append((res, score))
+            ordered = preconceptual + others
+            def _intent_key(item: Tuple[Residual, float]) -> Tuple[float, float, float, float, float]:
+                res, score = item
+                frag = res.fragment.lower()
+                diagnose = 1.0 if intent == "diagnose" and any(k in frag for k in ("symptom", "cause", "treat")) else 0.0
+                quantity = 1.0 if intent == "quantity" and re.search(r"\b\d+(\.\d+)?\b", res.fragment) else 0.0
+                conceptual = 1.0 if intent == "conceptual" and any(k in frag for k in ("is", "means", "defined")) else 0.0
+                tightness = 1.0 if q_lower in frag else 0.0
+                tag_hit = 1.0 if self.field._primary_tag_hit(query, res.fragment) else 0.0
+                return (diagnose, quantity, conceptual, tightness, tag_hit + score)
+            ordered.sort(key=_intent_key, reverse=True)
+            top: List[str] = []
+            seen: Set[str] = set()
+            winners: List[Residual] = []
+            for res, score in ordered:
+                if score < 0.48:
                     continue
-                frag = res.fragment.strip()
-                key = frag[:80].lower()
-                if key not in seen:
-                    seen.add(key)
-                    top.append(frag)
+                if qset and fuzzy_token_hits(qset, res.content_set) < 0.20 and q_lower not in res.fragment.lower():
+                    continue
+                key = res.fragment[:120].lower()
+                if key in seen:
+                    continue
+                seen.add(key)
+                top.append(res.fragment.strip())
+                winners.append(res)
                 if len(top) >= 3:
                     break
             if not top:
                 self.invention_refusals += 1
                 return self._REFUSAL
-            return top[0] if len(top) == 1 else " || ".join(top)
+            self._bellman_update(winners, reward=0.08 if intent in {"diagnose", "quantity"} else 0.05)
+            answer = format_intent_answer(top, intent)
+            if not answer:
+                self.invention_refusals += 1
+                return self._REFUSAL
+            return answer
         return "Unknown mode"
 
     def verify_integrity(self) -> Tuple[bool, str]:

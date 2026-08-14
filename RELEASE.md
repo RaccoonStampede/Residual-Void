@@ -1,17 +1,17 @@
-# ResidualVoid v2.1.0 – Unified Production Runtime
+# ResidualVoid v2.2.0 – Unified Production Runtime
 
 **Release Date:** 2026-08-14
 **Status:** Production Ready ✅
 
 ## Overview
 
-ResidualVoid v2.1 promotes the finalized unified production build as the default runtime.
+ResidualVoid v2.2 promotes parity with Unified Master ranking/synthesis and persistence features while keeping the modular package API.
 All advanced capabilities previously delivered in `residual_void_production.py` are now
 the package default, accessible via `pip install .` and `from residual_void import ...`.
 
 ## What's Included
 
-### Default Runtime (v2.1)
+### Default Runtime (v2.2)
 - **Hierarchical edge-nulling Pi-Helix extractor (v2)** — Schumann carriers + golden-ratio drives
 - **Nested geometric shells + Fibonacci placement** — shell-aware coherence tracking
 - **Hierarchical message-passing** — Laplacian spectrum (Fiedler eigenvalue) for graph analysis
@@ -21,6 +21,11 @@ the package default, accessible via `pip install .` and `from residual_void impo
 - **Binary residual path** — full binary payload support (SHA-256 + Blake2b + HMAC)
 - **Unlimited private mergers** — `ResidualNetworkManager` with isolated secrets, key rotation, nonce replay protection
 - **ResidualGeometry + ResidualFieldMind** — geometry and mind layers available on default import path
+- **Intent-aware synthesize ranking** — fuzzy token recovery + resonance + Bellman value updates
+- **Persistent append-only runtime** — `PersistentVoid` JSONL chain support
+- **Snapshot / restore / drift audit** — reproducibility and stability controls
+- **Document injection pipeline** — `auto_segment`, `inject_document`, and `ResidualVoid.inject`
+- **Transparent guest projection mode** — controlled read-only access via `ResidualNetworkManager.guest_project`
 
 ### Preserved from v2.0
 - Append-only residual locking with cryptographic hash chain
@@ -54,6 +59,12 @@ pip install -e .
 ⚠️ **Critical:** Set a strong secret via `ResidualVoid(secret=...)` or the config file's `security.secret_key` field. Never use the default development secret in production. If using `residual_void_production.py` directly, replace the `SHARED_SECRET` constant with a cryptographically secure random value (e.g., `secrets.token_bytes(32)`).
 
 ## Version History
+
+### v2.2.0 — 2026-08-14
+- Added Unified Master parity ranking/synthesize engine features
+- Added `PersistentVoid` append-only persistence and fail-closed load checks
+- Added snapshot/restore and drift audit
+- Added document ingestion and transparent guest projection support
 
 ### v2.1.0 — 2026-08-14
 - Promoted unified production build as default runtime

@@ -1,7 +1,11 @@
 from __future__ import annotations
 
 import threading
-from typing import Any, Dict, Optional, Tuple, Union
+import json
+import time
+from copy import deepcopy
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 from .core import CoherentVoid, Residual, SecureNode, canonical_payload, hash_text, sign_packet
 
@@ -41,6 +45,7 @@ class ResidualVoid:
         self._node = SecureNode(f"__facade__{id(self)}", self._void)
         self._pending: Dict[str, Dict[str, Any]] = {}
         self._lock = threading.RLock()
+        self._snapshots: List[Dict[str, Any]] = []
 
     # ------------------------------------------------------------------
     # Simple write path
@@ -127,6 +132,126 @@ class ResidualVoid:
             return {"source": "void", "results": []}
         return {"source": "void", "results": [{"payload": result, "score": 1.0}]}
 
+    def _state_dict(self) -> Dict[str, Any]:
+        residuals = []
+        for r in self._void.field.residuals:
+            residuals.append(
+                {
+                    "fragment": r.fragment,
+                    "domain": r.domain,
+                    "node_id": r.node_id,
+                    "protect": r.protect,
+                    "shell": r.shell,
+                    "imprint_layer": r.imprint_layer,
+                    "coherence": r.coherence,
+                    "value": r.value,
+                    "freqs": dict(r.freqs),
+                }
+            )
+        return {
+            "label": "",
+            "name": self._void.name,
+            "secret": self._secret_str,
+            "residuals": residuals,
+            "pending": deepcopy(self._pending),
+            "captured_at": time.time(),
+        }
+
+    def _load_state_dict(self, state: Dict[str, Any]) -> None:
+        secret = str(state.get("secret", self._secret_str))
+        name = str(state.get("name", "void"))
+        new_void = CoherentVoid(name=name, secret=secret)
+        new_node = SecureNode(f"__facade__{id(self)}", new_void)
+        for item in state.get("residuals", []):
+            payload = str(item.get("fragment", "")).strip()
+            if not payload:
+                continue
+            ok, reason = new_void.field.store(
+                payload,
+                domain=str(item.get("domain", "general")),
+                node_id=str(item.get("node_id", "restore")),
+                protect=bool(item.get("protect", True)),
+                shell=int(item.get("shell", 0)),
+                imprint_layer=str(item.get("imprint_layer", "fast")),
+                coherence=float(item.get("coherence", 0.85)),
+                value=float(item.get("value", 0.0)),
+                freqs=item.get("freqs") if isinstance(item.get("freqs"), dict) else None,
+            )
+            if ok:
+                new_void.lock_count += 1
+            elif reason != "duplicate":
+                raise ValueError(f"restore_failed:{reason}")
+        self._void = new_void
+        self._node = new_node
+        self._pending = deepcopy(state.get("pending", {}))
+
+    def snapshot(self, label: str = "") -> Dict[str, Any]:
+        snap = self._state_dict()
+        snap["label"] = label or f"snapshot-{len(self._snapshots) + 1}"
+        self._snapshots.append(deepcopy(snap))
+        return snap
+
+    def list_snapshots(self) -> List[str]:
+        return [str(s.get("label", "")) for s in self._snapshots]
+
+    def restore(self, label: Optional[str] = None) -> bool:
+        if not self._snapshots:
+            return False
+        target = self._snapshots[-1]
+        if label is not None:
+            matches = [s for s in self._snapshots if s.get("label") == label]
+            if not matches:
+                return False
+            target = matches[-1]
+        self._load_state_dict(deepcopy(target))
+        return True
+
+    def save_snapshot_file(self, path: str) -> str:
+        snap = self.snapshot(label=f"file:{Path(path).name}")
+        out = Path(path)
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(json.dumps(snap, ensure_ascii=False, indent=2), encoding="utf-8")
+        return str(out)
+
+    def load_snapshot_file(self, path: str) -> bool:
+        data = json.loads(Path(path).read_text(encoding="utf-8"))
+        self._load_state_dict(data)
+        self._snapshots.append(deepcopy(data))
+        return True
+
+    def audit_drift(self, probes: Optional[List[str]] = None, rounds: int = 3) -> Dict[str, Any]:
+        probes = probes or [
+            "what is locked in this void?",
+            "how many residuals are present?",
+            "summarize known protected content",
+        ]
+        rounds = max(1, int(rounds))
+        outputs: Dict[str, List[str]] = {probe: [] for probe in probes}
+        identity_holds = 0
+        for _ in range(rounds):
+            ok, _ = self.verify_integrity()
+            if ok:
+                identity_holds += 1
+            for probe in probes:
+                result = self.project(probe, mode="synthesize")
+                payload = result["results"][0]["payload"] if result["results"] else ""
+                outputs[probe].append(payload)
+        drift_by_probe = {}
+        for probe, vals in outputs.items():
+            unique = len(set(vals))
+            drift_by_probe[probe] = 0.0 if len(vals) < 2 else (unique - 1) / (len(vals) - 1)
+        drift_score = float(
+            0.7 * (sum(drift_by_probe.values()) / max(1, len(drift_by_probe)))
+            + 0.3 * (1.0 - identity_holds / rounds)
+        )
+        return {
+            "rounds": rounds,
+            "drift_score": round(drift_score, 4),
+            "identity_hold": round(identity_holds / rounds, 4),
+            "verdict": "stable" if drift_score <= 0.25 else "drifting",
+            "probe_drift": drift_by_probe,
+        }
+
     # ------------------------------------------------------------------
     # Integrity & status
     # ------------------------------------------------------------------
@@ -143,4 +268,3 @@ class ResidualVoid:
     @property
     def void(self) -> CoherentVoid:
         return self._void
-

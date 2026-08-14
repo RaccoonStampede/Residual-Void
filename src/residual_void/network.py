@@ -24,11 +24,14 @@ class ResidualNetworkManager:
         secret: str,
         config: Optional[Dict[str, Any]] = None,
         initial_nodes: Optional[List[str]] = None,
+        mode: str = "private",
     ) -> ResidualVoid:
         """Create isolated network backed by lean CoherentVoid, with optional initial nodes."""
         with self._lock:
             if name in self._networks:
                 raise ValueError(f"Network {name!r} already exists")
+            if mode not in {"private", "transparent"}:
+                raise ValueError("mode must be 'private' or 'transparent'")
 
             runtime = ResidualVoid(secret=secret, config=config)
             nodes: Dict[str, SecureNode] = {}
@@ -41,6 +44,7 @@ class ResidualNetworkManager:
                 "runtime": runtime,
                 "nodes": nodes,
                 "created_at": time.time(),
+                "mode": mode,
             }
             self._seen_nonces.setdefault(name, {})
             self._key_history.setdefault(name, {"previous_secret": None, "grace_seconds": 300})
@@ -192,6 +196,7 @@ class ResidualNetworkManager:
             st = runtime.status()
             st["nodes"] = list(entry.get("nodes", {}).keys()) if entry else []
             st["created_at"] = entry.get("created_at") if entry else 0
+            st["mode"] = entry.get("mode", "private") if entry else "private"
             return st
 
     def full_status(self) -> Dict[str, Any]:
@@ -204,6 +209,7 @@ class ResidualNetworkManager:
                     all_networks[name] = {
                         "nodes": list(entry.get("nodes", {}).keys()),
                         "created_at": entry.get("created_at", 0),
+                        "mode": entry.get("mode", "private"),
                         "void": st.get("void", {}),
                     }
                 except Exception:
@@ -215,3 +221,13 @@ class ResidualNetworkManager:
                 "timestamp": time.time(),
             }
 
+    def guest_project(self, name: str, query: str, mode: str = "synthesize") -> Dict[str, Any]:
+        """Read-only guest projection for transparent networks."""
+        with self._lock:
+            entry = self._networks.get(name)
+            if not entry:
+                return {"error": "network not found"}
+            if entry.get("mode", "private") != "transparent":
+                return {"error": "guest access denied"}
+            runtime: ResidualVoid = entry["runtime"]
+        return runtime.project(query, mode=mode)
