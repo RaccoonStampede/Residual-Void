@@ -793,9 +793,221 @@ class ResidualNetworkManager:
             return False
 
 # ============================================================
+# STANDALONE MULTI-AGENT LAYER (Residual Substrate)
+# ============================================================
+# Turns ResidualVoid into a complete zero-invention
+# communication system for multiple agents/services.
+# All communication happens only through lock + project.
+# ============================================================
+
+from typing import List, Optional, Dict, Any
+import time
+
+class ResidualAgent:
+    """
+    A single participant in the residual field.
+    It can only lock authenticated statements and project answers.
+    It is forbidden from inventing content.
+    """
+
+    def __init__(
+        self,
+        agent_id: str,
+        void: "CoherentVoid",
+        default_domain: str = "agent",
+    ):
+        self.agent_id = agent_id
+        self.node = SecureNode(agent_id, void)
+        self.default_domain = default_domain
+        self.history: List[str] = []
+
+    def lock(self, text: str, domain: Optional[str] = None, protect: bool = True) -> str:
+        """Lock an exact statement into the residual field."""
+        domain = domain or self.default_domain
+        attributed = f"{domain}::{self.agent_id.upper()}::{text}"
+        result = self.node.lock_text(
+            attributed,
+            domain=domain,
+            protect=protect,
+            imprint_layer="deep",
+            coherence=0.95,
+        )
+        if result == "locked":
+            self.history.append(attributed)
+        return result
+
+    def project(self, query: str, mode: str = "synthesize") -> str:
+        """Project an answer. Returns only locked material or the hard refusal."""
+        return self.node.project(query, mode=mode)
+
+    def observe(self, observation: str) -> str:
+        """Convenience: lock an observation."""
+        return self.lock(f"OBSERVATION::{observation}", domain="observe")
+
+    def decide(self, decision: str) -> str:
+        """Convenience: lock a decision / intent."""
+        return self.lock(f"DECISION::{decision}", domain="decide")
+
+    def status(self) -> Dict[str, Any]:
+        return {
+            "agent_id": self.agent_id,
+            "locked_count": len(self.history),
+            "last_locked": self.history[-1][:80] if self.history else None,
+        }
+
+
+class MultiAgentCoordinator:
+    """
+    Manages multiple ResidualAgents on one residual field.
+    All inter-agent communication is forced through lock + project.
+    """
+
+    def __init__(self, void: "ResidualVoid", network_name: str = "default"):
+        self.void = void
+        self.network_name = network_name
+        self.agents: Dict[str, ResidualAgent] = {}
+
+    def create_agent(self, agent_id: str, default_domain: str = "agent") -> ResidualAgent:
+        if agent_id in self.agents:
+            return self.agents[agent_id]
+        agent = ResidualAgent(agent_id, self.void.void, default_domain=default_domain)
+        self.agents[agent_id] = agent
+        return agent
+
+    def get_agent(self, agent_id: str) -> Optional[ResidualAgent]:
+        return self.agents.get(agent_id)
+
+    def broadcast(self, from_agent: str, message: str, domain: str = "broadcast") -> str:
+        """One agent locks a message that others can later project."""
+        agent = self.get_agent(from_agent)
+        if not agent:
+            return "agent_not_found"
+        return agent.lock(message, domain=domain)
+
+    def ask(self, from_agent: str, query: str, mode: str = "synthesize") -> str:
+        """One agent projects an answer from the shared residual field."""
+        agent = self.get_agent(from_agent)
+        if not agent:
+            return "agent_not_found"
+        return agent.project(query, mode=mode)
+
+    def simple_conversation(
+        self,
+        agent_a: str,
+        agent_b: str,
+        topic: str,
+        rounds: int = 3,
+        mode: str = "synthesize",
+    ) -> List[str]:
+        """
+        Very simple turn-based exchange.
+        Each agent may only lock its statement and project the current state.
+        No free invention is possible.
+        """
+        a = self.get_agent(agent_a)
+        b = self.get_agent(agent_b)
+        if not a or not b:
+            return ["missing_agent"]
+
+        log = []
+        a.lock(f"TOPIC::{topic}", domain="conversation")
+        log.append(f"{agent_a} locked topic")
+
+        for i in range(rounds):
+            view_a = a.project(f"current state of conversation about {topic}", mode=mode)
+            response_a = f"ROUND_{i+1}_A::{view_a[:200]}"
+            a.lock(response_a, domain="conversation")
+            log.append(f"{agent_a}: {response_a[:100]}...")
+
+            view_b = b.project(f"current state of conversation about {topic}", mode=mode)
+            response_b = f"ROUND_{i+1}_B::{view_b[:200]}"
+            b.lock(response_b, domain="conversation")
+            log.append(f"{agent_b}: {response_b[:100]}...")
+
+        return log
+
+    def status(self) -> Dict[str, Any]:
+        return {
+            "network": self.network_name,
+            "agent_count": len(self.agents),
+            "agents": {aid: agent.status() for aid, agent in self.agents.items()},
+            "void_status": self.void.status(),
+        }
+
+
+def create_standalone_system(secret: str = "standalone-secret-32bytes-minimum!!") -> MultiAgentCoordinator:
+    """Create a complete standalone ResidualVoid multi-agent system."""
+    void = ResidualVoid(secret=secret, name="standalone")
+    return MultiAgentCoordinator(void)
+
+
+def _residual_agent_lock_compat(
+    self,
+    text: str,
+    domain: Optional[str] = None,
+    protect: bool = True,
+) -> str:
+    domain = domain or self.default_domain
+    attributed = f"{domain}::{self.agent_id.upper()}::{text}"
+    try:
+        result = self.node.lock_text(
+            attributed,
+            domain=domain,
+            protect=protect,
+            imprint_layer="deep",
+            coherence=0.95,
+        )
+    except TypeError:
+        result = self.node.lock_text(attributed, domain=domain)
+    if result == "locked":
+        self.history.append(attributed)
+    return result
+
+
+def _residual_agent_project_compat(self, query: str, mode: str = "synthesize") -> str:
+    try:
+        return self.node.project(query, mode=mode)
+    except TypeError:
+        return self.node.project(query)
+
+
+def _multi_agent_create_agent_compat(
+    self,
+    agent_id: str,
+    default_domain: str = "agent",
+) -> ResidualAgent:
+    if agent_id in self.agents:
+        return self.agents[agent_id]
+    agent = ResidualAgent(agent_id, getattr(self.void, "void", self.void), default_domain=default_domain)
+    self.agents[agent_id] = agent
+    return agent
+
+
+def _create_standalone_system_compat(
+    secret: str = "standalone-secret-32bytes-minimum!!",
+) -> MultiAgentCoordinator:
+    secret_value = secret.encode("utf-8") if isinstance(secret, str) else secret
+    void = ResidualVoid(secret=secret_value, name="standalone")
+    return MultiAgentCoordinator(void)
+
+
+ResidualAgent.lock = _residual_agent_lock_compat
+ResidualAgent.project = _residual_agent_project_compat
+MultiAgentCoordinator.create_agent = _multi_agent_create_agent_compat
+create_standalone_system = _create_standalone_system_compat
+
+# ============================================================
 # QUICK SELF-TEST
 # ============================================================
 if __name__ == "__main__":
     print("ResidualVoid Final Restored Production Build loaded successfully.")
     print("All missing pieces (Pi-Helix, shells, imprint, Ghost Tax, hierarchical MP, binary path) are present.")
     print("Hard stress test previously confirmed: Core-nulling, Edge recovery, god-zone, and performance all pass.")
+    # --- Standalone Multi-Agent Example ---
+    # coord = create_standalone_system(secret="your-strong-secret-here-32bytes!!")
+    # alpha = coord.create_agent("alpha")
+    # beta  = coord.create_agent("beta")
+    # alpha.lock("MACHINE::ARM_07 is ready at station 3")
+    # beta.observe("Vacuum pressure dropped to 0.4 bar")
+    # print(alpha.project("what is the status of ARM_07", mode="synthesize"))
+    # print(coord.status())
