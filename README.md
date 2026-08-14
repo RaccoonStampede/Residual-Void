@@ -1,46 +1,25 @@
-# ResidualVoid v2.0 — Lean Permanent Core + Cryptographic Hash Chain
+# ResidualVoid v2.1 — Unified Production Runtime
 
-ResidualVoid now defaults to a **lean, auditable runtime** for permanent residual storage and grounded retrieval.
-
-This release focuses on:
-- append-only residual locking,
-- cryptographic chain integrity,
-- strict no-invention projection behavior,
-- practical secure-node and multi-network operation.
+ResidualVoid v2.1 ships the **unified production build** as its default runtime, combining
+hierarchical edge-nulling Pi-Helix extraction, nested geometric shells, Fibonacci placement,
+hierarchical message-passing (Laplacian/Fiedler), fast/medium/deep imprint layers,
+ghost tax / ethical tilt / god-zone regulation, binary residual path, and unlimited
+private mergers through `ResidualNetworkManager`.
 
 ---
 
-## What changed in v2.0
+## What's new in v2.1
 
-The default path has been simplified to a clean hybrid:
-
-- ✅ **Lean permanent core** (no decay in default path, append-only residual locking)
-- ✅ **Cryptographic hash chain** (`prev_hash` → `chain_hash`) with integrity verification
-- ✅ **Dual projection modes** (`exact`, `synthesize`) with hard refusal gates
-- ✅ **Packed 32-byte signatures** for efficient matching and ranking
-- ✅ **Secure ingest/auth surface** compatible with networked use
-- ✅ **Network isolation by secret** through `ResidualNetworkManager`
-
-The following are **not part of the default execution path**:
-- `mind.py`
-- `geometry.py`
-- Pi-Helix/autonomous/god-zone orchestration paths
-
-They may remain in the repository as optional/experimental modules.
-
----
-
-## Public API
-
-```python
-from residual_void import ResidualVoid, ResidualNetworkManager, SecureNode
-```
-
-Low-level components are also available:
-
-```python
-from residual_void import CoherentField, CoherentVoid, Residual
-```
+- ✅ **Unified production build** is now the default (previously opt-in)
+- ✅ **Hierarchical edge-nulling Pi-Helix** extractor active on default path
+- ✅ **Nested geometric shells + Fibonacci placement** included
+- ✅ **Hierarchical message-passing** (Laplacian spectrum / Fiedler eigenvalue)
+- ✅ **Fast / Medium / Deep imprint layers** with multi-pass coherence refinement
+- ✅ **Ghost tax + ethical tilt + god-zone regulation** (drift target ≈ 0.008)
+- ✅ **Binary residual path** with cryptographic signing (SHA-256 + Blake2b + HMAC)
+- ✅ **Unlimited private mergers** via `ResidualNetworkManager`
+- ✅ Geometry (`ResidualGeometry`) and mind (`ResidualFieldMind`) layers available on default path
+- ✅ All v2.0 security guarantees preserved (HMAC signatures, hash chain, replay protection)
 
 ---
 
@@ -55,92 +34,114 @@ pip install -e .
 
 ---
 
-## Quick start (single void)
+## Quick start (single node)
 
 ```python
 from residual_void import ResidualVoid, SecureNode
 
 # Use a strong secret in production
-void = ResidualVoid(secret=b"replace-with-strong-secret-bytes")
-node = SecureNode("machine_A", void)
+void = ResidualVoid(secret="replace-with-strong-secret")
+node = SecureNode("machine_A", void._void)
 
-# Lock permanent residuals
+# Lock a residual
 print(node.lock_text("CMD::ALERT::AUTHORIZED", domain="command"))
 
 # Project grounded output
 print(node.project("CMD::ALERT", mode="exact"))
 print(node.project("authorized command", mode="synthesize"))
 
-# Verify chain integrity + status
+# Verify chain integrity and check status
 print(void.verify_integrity())
 print(void.status())
 ```
 
 ---
 
-## Multi-network usage
+## Multi-network example via ResidualNetworkManager
 
 ```python
 from residual_void import ResidualNetworkManager
 
 mgr = ResidualNetworkManager()
 
-net1 = mgr.create_network("line_a", secret="secret-a")
-net2 = mgr.create_network("line_b", secret="secret-b")
+net1 = mgr.create_network("line_a", secret="secret-a", initial_nodes=["node_1"])
+net2 = mgr.create_network("line_b", secret="secret-b", initial_nodes=["node_2"])
+
+# Lock on line_a
+node = mgr.get_node("line_a", "node_1")
+node.lock_text("NETWORK::PAYLOAD::OK", domain="general")
 
 print(mgr.list_networks())
+print(mgr.network_status("line_a"))
 ```
 
 ---
 
-## Behavioral model
+## CLI
 
-### 1) Permanent residual locking
-- Residuals are append-only.
-- Duplicate payloads are rejected.
+```bash
+# Print runtime status
+residual-void
 
-### 2) Hash chain integrity
-Each residual tracks:
-- `prev_hash`
-- `chain_hash`
+# Single-node smoke demo (lock + project)
+residual-void --demo
 
-Integrity verification recomputes links and detects:
-- chain breaks,
-- payload tampering,
-- chain-tip mismatch.
+# Multi-network smoke demo
+residual-void --network-demo
 
-### 3) Projection modes
-- `exact`: returns directly grounded residuals when confidence is sufficient.
-- `synthesize`: combines top grounded residual fragments.
-
-When grounding is insufficient, the runtime refuses with a no-invention response.
+# Show version
+residual-void --version
+```
 
 ---
 
-## Security notes
+## Security / auth notes
 
-- Use long, high-entropy secrets in production.
-- Rotate secrets regularly.
-- Prefer secret isolation per environment/tenant/network.
-- In networked deployments, keep nonce/time-window validation enabled.
+- All residuals are HMAC-SHA256 signed and Blake2b hashed for deduplication.
+- Each `SecureNode` enforces per-node authenticated lock/project operations.
+- Nonce + time-window replay protection is active on the network manager path.
+- **Change `SHARED_SECRET` in `residual_void_production.py` before deploying.**
+- Use long, high-entropy secrets. Rotate secrets regularly.
+- Isolate secrets per environment / tenant / network.
+
+---
+
+## Public API
+
+```python
+from residual_void import (
+    ResidualVoid,
+    ResidualNetworkManager,
+    SecureNode,
+    CoherentField,
+    CoherentVoid,
+    Residual,
+)
+```
+
+Optional geometry / mind layers are also importable:
+
+```python
+from residual_void import ResidualGeometry, ResidualFieldMind
+```
 
 ---
 
 ## Validation
 
-Run tests:
+Run the full test suite:
 
 ```bash
-python -m pytest -q
+pytest -q
 ```
 
-Minimal smoke test:
+Minimal smoke snippet:
 
 ```python
 from residual_void import ResidualVoid, SecureNode
 
-void = ResidualVoid(secret=b"test-secret-32-bytes-minimum-please!!")
-node = SecureNode("smoke", void)
+void = ResidualVoid(secret="test-secret-32-bytes-minimum-please!!")
+node = SecureNode("smoke", void._void)
 
 assert node.lock_text("SMOKE::LOCK::OK", domain="test") == "locked"
 print(node.project("SMOKE::LOCK", mode="exact"))
@@ -151,7 +152,7 @@ print(void.verify_integrity())
 
 ## Version
 
-`v2.0.0` — Lean Permanent Core + Cryptographic Hash Chain
+`v2.1.0` — Unified Production Runtime (edge-nulling + geometry + networked residual)
 
 ---
 
@@ -165,3 +166,4 @@ MIT License. See `LICENSE` for details.
 
 - Issues: https://github.com/RaccoonStampede/Residual-Void/issues
 - Discussions: https://github.com/RaccoonStampede/Residual-Void/discussions
+

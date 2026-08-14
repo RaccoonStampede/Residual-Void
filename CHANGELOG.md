@@ -2,6 +2,31 @@
 
 All notable changes to Residual-Void will be documented in this file.
 
+## [2.1.0] - 2026-08-14
+
+### Changed
+- Promoted unified production build as the default runtime (was previously opt-in)
+- `geometry.py` (`ResidualGeometry`) and `mind.py` (`ResidualFieldMind`) layers are now loaded on the default import path
+- Updated `__init__.py` docstring and `__version__` to reflect v2.1 unified runtime
+- Bumped `pyproject.toml` version to `2.1.0` with updated description
+- Rewrote `README.md` to document v2.1 unified production build, updated Quick start and API examples
+- Added `--network-demo` CLI flag to `__main__.py` for multi-network smoke demo
+- Updated `RELEASE.md` with v2.1.0 release notes
+
+### Default runtime now includes
+- Hierarchical edge-nulling Pi-Helix extractor (v2)
+- Nested geometric shells + Fibonacci placement
+- Hierarchical message-passing + Laplacian/Fiedler eigenvalue
+- Fast/Medium/Deep imprint layers
+- Ghost tax + ethical tilt + god-zone regulation (drift target ≈ 0.008)
+- Binary residual path with SHA-256 + Blake2b + HMAC signing
+- Unlimited private mergers via `ResidualNetworkManager`
+
+### Migration from v2.0
+- No breaking import changes; all v2.0 imports continue to work
+- `geometry` and `mind` layers previously optional are now loaded automatically if available
+- `SecureNode` constructor expects a `CoherentVoid` instance (pass `void._void`), unchanged from v2.0
+
 ## [0.1.0] - 2026-08-12
 
 ### Added

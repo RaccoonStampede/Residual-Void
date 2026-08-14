@@ -2,6 +2,7 @@ LICENSE
 README.md
 pyproject.toml
 src/config_loader.py
+src/residual_void_hyperdrive.py
 src/residual_void/__init__.py
 src/residual_void/__main__.py
 src/residual_void/core.py
@@ -21,6 +22,7 @@ tests/test_core.py
 tests/test_core_nulling.py
 tests/test_geometry.py
 tests/test_god_zone.py
+tests/test_hyperdrive_module.py
 tests/test_imprint_layers.py
 tests/test_integration.py
 tests/test_mind.py

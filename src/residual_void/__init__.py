@@ -1,10 +1,12 @@
-"""ResidualVoid – Lean Permanent Core + Cryptographic Hash Chain v2.0
+"""ResidualVoid – Unified Production Runtime v2.1
+
+Default runtime: hierarchical edge-nulling Pi-Helix, nested geometric shells,
+Fibonacci placement, hierarchical message-passing (Laplacian/Fiedler),
+fast/medium/deep imprint layers, ghost tax / ethical tilt / god-zone regulation,
+binary residual path, and unlimited private mergers via ResidualNetworkManager.
 
 Public API: ResidualVoid, ResidualNetworkManager, SecureNode,
             CoherentField, CoherentVoid, Residual.
-
-Optional experimental layers (geometry / mind / Pi-Helix) remain
-available as direct imports but are not loaded on the default path.
 """
 
 from .core import (
@@ -19,26 +21,31 @@ from .core import (
 from .merged import ResidualVoid
 from .network import ResidualNetworkManager
 
-__version__ = "2.0.0"
+__version__ = "2.1.0"
 __all__ = [
-    # Core lean API
+    # Unified production API
     "ResidualVoid",
     "ResidualNetworkManager",
     "SecureNode",
     "CoherentField",
     "CoherentVoid",
     "Residual",
-    # Pi-Helix DSP (optional – kept for backward compat)
+    # Pi-Helix DSP
     "hierarchical_edge_extract_v2",
     "schumann_carrier",
     "pi_helix_drive",
 ]
 
-# Optional experimental layers – kept for backward compat but not on the default path
+# Optional geometry/mind layers – available on default path in v2.1
 try:
     from .geometry import ResidualGeometry
+    __all__ += ["ResidualGeometry"]
+except ImportError:  # pragma: no cover
+    pass
+
+try:
     from .mind import ResidualFieldMind
-    __all__ += ["ResidualGeometry", "ResidualFieldMind"]
+    __all__ += ["ResidualFieldMind"]
 except ImportError:  # pragma: no cover
     pass
 
