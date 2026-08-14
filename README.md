@@ -1,6 +1,6 @@
-# ResidualVoid v2.1 — Unified Production Runtime
+# ResidualVoid v2.2 — Unified Production Runtime
 
-ResidualVoid v2.1 ships the **unified production build** as its default runtime, combining
+ResidualVoid v2.2 ships the **unified production build** as its default runtime, combining
 hierarchical edge-nulling Pi-Helix extraction, nested geometric shells, Fibonacci placement,
 hierarchical message-passing (Laplacian/Fiedler), fast/medium/deep imprint layers,
 ghost tax / ethical tilt / god-zone regulation, binary residual path, and unlimited
@@ -8,7 +8,7 @@ private mergers through `ResidualNetworkManager`.
 
 ---
 
-## What's new in v2.1
+## What's new in v2.2
 
 - ✅ **Unified production build** is now the default (previously opt-in)
 - ✅ **Hierarchical edge-nulling Pi-Helix** extractor active on default path
@@ -20,6 +20,11 @@ private mergers through `ResidualNetworkManager`.
 - ✅ **Unlimited private mergers** via `ResidualNetworkManager`
 - ✅ Geometry (`ResidualGeometry`) and mind (`ResidualFieldMind`) layers available on default path
 - ✅ All v2.0 security guarantees preserved (HMAC signatures, hash chain, replay protection)
+- ✅ Master-parity synthesize ranking (intent + fuzzy + resonance + value bias)
+- ✅ Persistent append-only JSONL runtime via `PersistentVoid`
+- ✅ Snapshot/restore + drift audit APIs
+- ✅ Document ingestion helpers (`auto_segment`, `inject_document`, `ResidualVoid.inject`)
+- ✅ Transparent network guest projection (`guest_project`)
 
 ---
 
@@ -153,7 +158,7 @@ print(void.verify_integrity())
 
 ## Version
 
-`v2.1.0` — Unified Production Runtime (edge-nulling + geometry + networked residual)
+`v2.2.0` — Unified Production Runtime parity update (ranking + persistence + ingestion)
 
 ---
 
@@ -167,4 +172,3 @@ MIT License. See `LICENSE` for details.
 
 - Issues: https://github.com/RaccoonStampede/Residual-Void/issues
 - Discussions: https://github.com/RaccoonStampede/Residual-Void/discussions
-

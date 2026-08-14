@@ -2,6 +2,17 @@
 
 All notable changes to Residual-Void will be documented in this file.
 
+## [2.2.0] - 2026-08-14
+
+### Added
+- Extended `CoherentField` ranking with fuzzy token recovery, phrase anchors/bridges, resonance/frequency scoring, and value bias.
+- Added intent-aware synthesize projection flow with query-chain logging and Bellman-style residual value updates.
+- Added `PersistentVoid` append-only JSONL persistence runtime with fail-closed load behavior.
+- Added snapshot APIs (`snapshot`, `list_snapshots`, `restore`, `save_snapshot_file`, `load_snapshot_file`) and `audit_drift`.
+- Added document ingestion helpers: `auto_segment`, `inject_document`, and `ResidualVoid.inject`.
+- Added `ResidualNetworkManager` support for `mode="private"|"transparent"` plus `guest_project`.
+- Added parity-focused tests for ranking, synthesize quality, persistence, snapshots, drift, ingestion, and transparent guest access.
+
 ## [2.1.0] - 2026-08-14
 
 ### Changed

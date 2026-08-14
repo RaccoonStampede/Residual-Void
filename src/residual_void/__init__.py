@@ -20,12 +20,15 @@ from .core import (
 )
 from .merged import ResidualVoid
 from .network import ResidualNetworkManager
+from .ingestion import auto_segment, inject_document
+from .persistence import PersistentVoid
 
-__version__ = "2.1.0"
+__version__ = "2.2.0"
 __all__ = [
     # Unified production API
     "ResidualVoid",
     "ResidualNetworkManager",
+    "PersistentVoid",
     "SecureNode",
     "CoherentField",
     "CoherentVoid",
@@ -34,7 +37,10 @@ __all__ = [
     "hierarchical_edge_extract_v2",
     "schumann_carrier",
     "pi_helix_drive",
+    "auto_segment",
+    "inject_document",
 ]
+
 
 # Optional geometry/mind layers – available on default path in v2.1
 try:
@@ -48,4 +54,3 @@ try:
     __all__ += ["ResidualFieldMind"]
 except ImportError:  # pragma: no cover
     pass
-
