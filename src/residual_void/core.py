@@ -592,8 +592,12 @@ class Residual:
         if self.core is None:
             self.core = RealityCore(scale=scale)
         else:
-            self.core.scale = max(0.1, abs(scale))
-            self.core.__post_init__()
+            s = max(0.1, abs(scale))
+            self.core.scale = s
+            self.core.leak = 0.06 / (s ** 0.6)
+            self.core.fluidity = 0.6 / (s ** 0.9)
+            self.core.restore = 0.05 * (s ** 0.7)
+            self.core.slow_leak = self.core.leak * 0.15
         return self.core
 
     # Convenience aliases kept for API compatibility
@@ -819,7 +823,6 @@ class CoherentField:
                 if "::" in res.fragment:
                     score += 0.12
                 # primary anchor boost: token matches the tag before first ::
-                primary = frag_lower.split("::")[1] if frag_lower.count("::") >= 1 else ""
                 # handle MOTOR::OVERLOAD::... -> primary becomes overload
                 parts = [p for p in frag_lower.split("::") if p]
                 primary_tag = parts[1] if len(parts) >= 2 else (parts[0] if parts else "")
@@ -830,7 +833,6 @@ class CoherentField:
                         score += 0.40
                 # multi-token primary match e.g. "service factor" vs SERVICE_FACTOR
                 primary_compact = primary_tag.replace("_", " ").replace("-", " ")
-                q_compact = " ".join(sorted(qset))
                 if primary_compact and all(tok in frag_lower for tok in primary_compact.split() if len(tok) > 2):
                     if any(tok in qset for tok in primary_compact.split() if len(tok) > 2):
                         score += 0.35
@@ -866,8 +868,8 @@ class CoherentField:
                         score *= 0.70
                 # multi-token phrase boost (natural gas, water column, fuel line)
                 q_words = [t for t in q_lower.split() if len(t) > 2]
-                for i in range(len(q_words) - 1):
-                    phrase = q_words[i] + " " + q_words[i + 1]
+                for wi in range(len(q_words) - 1):
+                    phrase = q_words[wi] + " " + q_words[wi + 1]
                     if phrase in frag_lower:
                         score += 0.22
                 # light synonym / morphological bridges
@@ -975,7 +977,10 @@ class CoherentField:
                 if lexical_signal == 0:
                     score *= 0.03
                     if r > 0.58:
-                        phase_factor = (int(res.residual_id[:4], 16) % 100) / 100.0
+                        try:
+                            phase_factor = (int(res.residual_id[:4], 16) % 100) / 100.0
+                        except (TypeError, ValueError):
+                            phase_factor = 0.0
                         score += 0.18 * phase_factor * freq.get("fluct_open", 0.35)
                 elif hits == 0 and soft_hits >= 0.65:
                     # soft-only match: mild damp, keep bridge score
@@ -1237,13 +1242,13 @@ class CoherentVoid:
             cores.append((res, score, core))
 
         for _ in range(self.vibrate_steps):
-            mean_phase = sum(c.phase for _, _, c in cores) / len(cores)
+            mean_phase = sum(c.phase for _, _, c in cores) / max(1, len(cores))
             for res, score, core in cores:
                 core.force = self.coupling * (mean_phase - core.phase) + score * 0.3
                 core.step(self.vibrate_dt)
 
         # re-rank by blend of original score and coherence (inverse phase distance to mean)
-        mean_phase = sum(c.phase for _, _, c in cores) / len(cores)
+        mean_phase = sum(c.phase for _, _, c in cores) / max(1, len(cores))
         ranked = []
         for res, score, core in cores:
             coherence = 1.0 / (1.0 + abs(core.phase - mean_phase))
