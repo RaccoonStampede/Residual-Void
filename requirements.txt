@@ -2,3 +2,4 @@ pyyaml>=6.0
 numpy>=1.24
 scipy>=1.10
 pytest>=8.0
+zeroconf>=0.132.0
