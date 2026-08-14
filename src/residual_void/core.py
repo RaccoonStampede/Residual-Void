@@ -48,11 +48,11 @@ PHRASE_BRIDGES = {
 }
 
 TOKEN_BRIDGES = {
-    "bond": ["ground", "grounding", "bonded", "bond"],
+    "bond": ["ground", "grounding", "bonded"],
     "bonded": ["ground", "grounding", "bond"],
     "ground": ["grounding", "bond", "bonded"],
     "grounding": ["ground", "bond", "bonded"],
-    "protect": ["overload", "protect", "protection", "relay"],
+    "protect": ["overload", "protection", "relay"],
     "protection": ["overload", "protect", "relay"],
     "overload": ["protect", "protection", "thermal", "relay"],
     "frame": ["grounding", "ground", "bond", "bonded"],
@@ -1368,6 +1368,17 @@ class CoherentVoid:
             elif any(w in q_lower for w in ("invent", "invention")):
                 force_needles = ("no free invention", "supported by locked")
 
+            def _body_text(text: str) -> str:
+                text = text.strip()
+                parts = text.split("::", 2)
+                if len(parts) >= 3:
+                    return parts[2].strip()
+                if " | " in text:
+                    return text.split(" | ", 1)[1].strip()
+                if len(parts) == 2:
+                    return parts[1].strip()
+                return text
+
             def _is_full_fragment(text: str) -> bool:
                 head = text.split(" | ")[0] if " | " in text else text
                 parts = [p for p in head.lower().split("::") if p]
@@ -1413,14 +1424,14 @@ class CoherentVoid:
                 return self._REFUSAL
 
             primary_full = _is_full_fragment(primary_text)
-            primary_body = primary_text.split("::", 2)[-1].strip().lower()
+            primary_body = _body_text(primary_text).lower()
             for res, score in ordered:
                 if primary_res is not None and res.residual_id == primary_res.residual_id:
                     continue
                 if score < 0.44:
                     continue
                 cand = res.fragment.strip()
-                cand_body = cand.split("::", 2)[-1].strip().lower()
+                cand_body = _body_text(cand).lower()
                 if not cand_body or cand_body == primary_body:
                     continue
                 cand_full = _is_full_fragment(cand)
