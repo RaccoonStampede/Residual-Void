@@ -47,6 +47,17 @@ PHRASE_BRIDGES = {
     "invent new facts": ["no free invention", "supported by locked"],
 }
 
+TOKEN_BRIDGES = {
+    "bond": ["ground", "grounding", "bonded"],
+    "bonded": ["ground", "grounding", "bond"],
+    "ground": ["grounding", "bond", "bonded"],
+    "grounding": ["ground", "bond", "bonded"],
+    "protect": ["overload", "protection", "relay"],
+    "protection": ["overload", "protect", "relay"],
+    "overload": ["protect", "protection", "thermal", "relay"],
+    "frame": ["grounding", "ground", "bond", "bonded"],
+}
+
 
 def tokenize_text(text: str) -> List[str]:
     return re.findall(r"[a-zA-Z0-9_]+", text.lower())
@@ -302,32 +313,47 @@ class RealityCore:
         return float(np.clip(coherence, 0.0, 1.0))
 
 
-def format_intent_answer(candidates: List[str], intent: str) -> str:
-    if not candidates:
-        return ""
-
+def format_intent_answer(intent: str, primary: str, support: str = "") -> str:
+    """Shape residual text into an intent-directed answer. No invention — only locked text.
+    Prefers the tightest body. When primary is a long FULL residual and a useful
+    support segment exists, promote the support to primary for cleaner answers.
+    """
     def body(text: str) -> str:
         text = text.strip()
+        # DOMAIN::TAG::body
         parts = text.split("::", 2)
         if len(parts) >= 3:
             return parts[2].strip()
+        # DOMAIN::TAG | body   or   TAG | body
         if " | " in text:
             return text.split(" | ", 1)[1].strip()
         if len(parts) == 2:
             return parts[1].strip()
         return text
 
-    primary = body(candidates[0])
-    if len(primary) > 900:
-        primary = primary[:900].rsplit(" ", 1)[0] + "…"
-    if len(candidates) == 1:
-        return primary
-    support = body(candidates[1])
-    if len(support) > 500:
-        support = support[:500].rsplit(" ", 1)[0] + "…"
-    if intent in ("diagnose", "why", "how"):
-        return f"{primary} Related: {support}"
-    return f"{primary} | {support}"
+    def is_full(text: str) -> bool:
+        head = text.split(" | ")[0] if " | " in text else text
+        parts = head.split("::")
+        tag = parts[1].lower() if len(parts) >= 2 else ""
+        return tag.endswith("_full") or tag.endswith("full")
+
+    # Prefer tight support over a long FULL primary
+    if support and is_full(primary) and not is_full(support) and len(primary) > 350:
+        primary, support = support, ""
+
+    main = body(primary)
+    # Soft length guard for readability (still pure locked text)
+    if len(main) > 900:
+        main = main[:900].rsplit(" ", 1)[0] + "…"
+
+    if support:
+        extra = body(support)
+        if len(extra) > 500:
+            extra = extra[:500].rsplit(" ", 1)[0] + "…"
+        if intent in ("diagnose", "why", "how"):
+            return f"{main} Related: {extra}"
+        return f"{main} | {extra}"
+    return main
 
 
 def cosine_similarity(vec_a: Counter, vec_b: Counter) -> float:
@@ -350,11 +376,13 @@ def sha256_hex(data: bytes) -> str:
 
 
 def bytes_to_bits_packed(data: bytes) -> bytes:
-    """Produce a 32-byte packed bit signature via multi-hash."""
+    """256-bit signature mixing SHA-256 x2 + BLAKE2b via XOR (all three contribute)."""
     h1 = hashlib.sha256(data).digest()
     h2 = hashlib.sha256(data + b"|residual|void|binary|v2").digest()
     h3 = hashlib.blake2b(data, digest_size=32).digest()
-    return (h1 + h2 + h3)[:32]
+    # XOR-mix so h2 and h3 are not discarded (fixes multi-hash truncation bug)
+    out = bytes(a ^ b ^ c for a, b, c in zip(h1, h2, h3))
+    return out
 
 
 def bytes_to_bits(data: bytes, dim: int = BIT_DIM) -> np.ndarray:
@@ -571,6 +599,18 @@ class Residual:
             self._sig_bits = packed_to_bits(self.sig_packed)
         return self._sig_bits
 
+    def ensure_core(self, scale: float = 1.0) -> RealityCore:
+        if self.core is None:
+            self.core = RealityCore(scale=scale)
+        else:
+            s = max(0.1, abs(scale))
+            self.core.scale = s
+            self.core.leak = 0.06 / (s ** 0.6)
+            self.core.fluidity = 0.6 / (s ** 0.9)
+            self.core.restore = 0.05 * (s ** 0.7)
+            self.core.slow_leak = self.core.leak * 0.15
+        return self.core
+
     # Convenience aliases kept for API compatibility
     @property
     def payload(self) -> str:
@@ -593,6 +633,7 @@ class CoherentField:
         self._lock = threading.RLock()
         self._next_version = 1
         self.chain_tip: str = "GENESIS"
+        self._last_query_freqs: List[int] = []
 
     def _raw_key(self, text: str) -> bytes:
         return hashlib.sha256(text.encode("utf-8")).digest()
@@ -718,114 +759,240 @@ class CoherentField:
                         break
         return hits
 
-    def rank(self, query: str, domain: Optional[str] = None, top_k: int = 20) -> List[tuple]:
-        """Rank residuals with lexical, fuzzy, resonance, and value-aware heuristics."""
+    def rank(self, query: str, domain: Optional[str] = None, top_k: int = 20, freq: Optional[Dict] = None) -> List[tuple]:
         with self._lock:
             if not self.residuals:
                 return []
-            freq = question_frequency(query)
+            if freq is None:
+                freq = question_frequency(query)
+            # RCF: lock probe frequencies for resonance scoring
+            self._last_query_freqs = text_to_frequencies(query)
             probe = packed_to_bits(bytes_to_bits_packed(query.encode("utf-8")))
             qset = set(content_tokens(query))
             q_lower = query.lower().strip()
-            qfreq = text_to_frequencies(query)
-            q_intent = classify_intent(query)
             candidate_idxs: set = set()
             if qset:
                 for t in qset:
                     candidate_idxs.update(self._token_index.get(t, []))
             if domain:
                 candidate_idxs.update(self._domain_index.get(domain, []))
-            bridge_needles: List[str] = []
+            # always soft-expand for morphological / fuzzy neighbors (bond~bonded, frame~frames)
+            if qset and self.residuals:
+                for i, res in enumerate(self.residuals):
+                    if res.domain == "query":
+                        continue
+                    soft = fuzzy_token_hits(qset, res.content_set)
+                    if soft >= 0.65:
+                        candidate_idxs.add(i)
+                        continue
+                    for qt in qset:
+                        if len(qt) < 4:
+                            continue
+                        for ct in res.content_set:
+                            if len(ct) >= 4 and (ct.startswith(qt) or qt.startswith(ct[:4])):
+                                candidate_idxs.add(i)
+                                break
+            # phrase-anchor / bridge expansion (locked-text only)
+            q_lower_r = query.lower().strip()
+            bridge_needles = []
             for trigger, targets in PHRASE_BRIDGES.items():
-                if trigger in q_lower:
+                if trigger in q_lower_r:
                     bridge_needles.extend(targets)
-            for idx, res in enumerate(self.residuals):
-                if res.domain in {"query", "rejected"}:
+            for i, res in enumerate(self.residuals):
+                if res.domain in ("query", "rejected"):
                     continue
-                frag_lower = res.fragment.lower()
+                frag = res.fragment.lower()
                 for phrase in PHRASE_ANCHORS:
-                    if phrase in q_lower and any(w in frag_lower for w in phrase.split() if len(w) > 1):
-                        candidate_idxs.add(idx)
+                    if phrase in q_lower_r and any(w in frag for w in phrase.split() if len(w) > 1):
+                        candidate_idxs.add(i)
                         break
-                if bridge_needles and any(needle in frag_lower for needle in bridge_needles):
-                    candidate_idxs.add(idx)
-            if not candidate_idxs:
+                for needle in bridge_needles:
+                    if needle in frag:
+                        candidate_idxs.add(i)
+
+            if not candidate_idxs and not (qset or domain):
                 candidate_idxs = set(range(len(self.residuals)))
             scores = []
             for i in candidate_idxs:
                 res = self.residuals[i]
-                if res.domain in {"query", "rejected"}:
-                    continue
+                if res.domain in ("query", "rejected"):
+                    continue  # never answer from query or rejected residuals
                 r = hamming_sim(probe, res.bits())
                 hits = sum(1 for t in qset if t in res.content_set) if qset else 0
-                fuzzy_hits = fuzzy_token_hits(qset, res.content_set) if qset else 0.0
-                fuzzy_norm = fuzzy_hits / max(1, len(qset))
-                bridge_hits = self._bridge_hits(query, res.content_set)
                 coverage = hits / max(1, len(qset)) if qset else 0.0
-                resonance = resonance_score(qfreq, res.freqs)
-                score = (
-                    0.14 * r
-                    + 0.24 * coverage
-                    + 0.20 * fuzzy_norm
-                    + 0.16 * resonance
-                    + 0.08 * min(1.0, res.value)
-                )
+                score = 0.20 * r + 0.40 * coverage
                 frag_lower = res.fragment.lower()
                 exact_sub = bool(q_lower and q_lower in frag_lower)
                 if exact_sub:
-                    score += 0.55
+                    score += 0.62
                 elif any(t in frag_lower for t in qset if len(t) >= 3):
-                    score += 0.22
-                if self._primary_tag_hit(query, res.fragment):
-                    score += 0.16
+                    score += 0.28
                 if hits >= 2:
-                    score += 0.18
+                    score += 0.22
                 elif hits == 1:
-                    score += 0.08
-                if bridge_hits:
-                    score += min(0.16, bridge_hits * 0.06)
+                    score += 0.12
                 if "::" in res.fragment:
-                    score += 0.08
+                    score += 0.12
+                # primary anchor boost: token matches the tag before first ::
+                # handle MOTOR::OVERLOAD::... -> primary becomes overload
+                parts = [p for p in frag_lower.split("::") if p]
+                primary_tag = parts[1] if len(parts) >= 2 else (parts[0] if parts else "")
+                for t in qset:
+                    if len(t) >= 4 and t == primary_tag:
+                        score += 0.55
+                    elif len(t) >= 4 and (primary_tag.startswith(t) or t in primary_tag):
+                        score += 0.40
+                # multi-token primary match e.g. "service factor" vs SERVICE_FACTOR
+                primary_compact = primary_tag.replace("_", " ").replace("-", " ")
+                if primary_compact and all(tok in frag_lower for tok in primary_compact.split() if len(tok) > 2):
+                    if any(tok in qset for tok in primary_compact.split() if len(tok) > 2):
+                        score += 0.35
+                # key-noun boost
+                key_boost = 0.0
+                for t in qset:
+                    if len(t) >= 4 and t in frag_lower:
+                        key_boost += 0.16
+                score += min(0.32, key_boost)
+                # phrase anchor / bridge boost
+                phrase_hits = 0.0
+                for phrase in PHRASE_ANCHORS:
+                    if phrase in q_lower and phrase in frag_lower:
+                        phrase_hits += 1.0
+                for trigger, targets in PHRASE_BRIDGES.items():
+                    if trigger in q_lower:
+                        for needle in targets:
+                            if needle in frag_lower:
+                                phrase_hits += 1.2
+                score += min(0.45, phrase_hits * 0.22)
+                # negative evidence: exhaustion vs stroke style cross-talk
+                if "exhaustion" in q_lower and "stroke" in frag_lower and "exhaustion" not in frag_lower:
+                    score *= 0.45
+                if "stroke" in q_lower and "exhaustion" in frag_lower and "stroke" not in frag_lower:
+                    score *= 0.45
+
+                # quantity questions prefer residuals that state a number/unit
+                if any(w in q_lower for w in ("how much", "how many", "what is the minimum", "minimum", "inches", "voltage", "pressure")):
+                    if any(ch.isdigit() for ch in res.fragment):
+                        score += 0.28
+                    # demote pure diagnostic cross-talk on quantity pulls
+                    if any(w in frag_lower for w in ("error", "fault", "failed", "indicates")) and not any(ch.isdigit() for ch in res.fragment):
+                        score *= 0.70
+                # multi-token phrase boost (natural gas, water column, fuel line)
+                q_words = [t for t in q_lower.split() if len(t) > 2]
+                for wi in range(len(q_words) - 1):
+                    phrase = q_words[wi] + " " + q_words[wi + 1]
+                    if phrase in frag_lower:
+                        score += 0.22
+                # light synonym / morphological bridges
+                bridge_hits = 0
+                for t in qset:
+                    for alt in TOKEN_BRIDGES.get(t, []):
+                        if alt in frag_lower or alt == primary_tag:
+                            score += 0.32
+                            bridge_hits += 1
+                            break
+                if bridge_hits:
+                    score += min(0.18, 0.08 * bridge_hits)
                 if domain and res.domain == domain:
                     score += 0.10
                 if res.protect:
-                    score += 0.02
-                length_penalty = 0.0
+                    score += 0.05
+                # hierarchical shell + imprint boosts (synthesis-friendly)
+                # prefer deeper shells and deep imprint for grounded answers
+                shell_boost = {0: 0.02, 1: 0.04, 2: 0.06, 3: 0.03}.get(getattr(res, "shell", 0), 0.0)
+                imprint_boost = {"deep": 0.10, "medium": 0.04, "fast": 0.01}.get(getattr(res, "imprint_layer", "medium"), 0.0)
+                score += shell_boost + imprint_boost
+                score += 0.08 * float(getattr(res, "coherence", 0.85) - 0.70)
+                # Bellman value bias: high-value residuals (proven useful) rise; low-value decay
+                score += 0.26 * (float(getattr(res, "value", 0.50)) - 0.50)
+                # conceptual / memoir intent boost — targeted, not blanket
+                if any(w in q_lower for w in ("why", "origin", "began", "built", "started")):
+                    if "origin" in frag_lower or "began as" in frag_lower or "memory bottleneck" in frag_lower:
+                        score += 0.55
+                    if "void_purpose" in frag_lower and "origin" not in frag_lower:
+                        score -= 0.15
+                if any(w in q_lower for w in ("unused", "decay", "decayed", "disappear")):
+                    if "slowly decay" in frag_lower or "decay never deletes" in frag_lower:
+                        score += 0.55
+                    if "remain fully visible" in frag_lower:
+                        score += 0.35
+                    if "surface decayed" in frag_lower or "ascending value" in frag_lower:
+                        score += 0.15 if ("find" in q_lower or "how do i" in q_lower) else -0.10
+                if any(w in q_lower for w in ("invent", "invention")):
+                    if "no free invention" in frag_lower or "supported by locked" in frag_lower:
+                        score += 0.45
+                # RCF resonant boost
+                qf = getattr(self, "_last_query_freqs", None)
+                rf = getattr(res, "freqs", None)
+                if qf and rf:
+                    score += 0.35 * resonance_score(qf, rf)
+
+                # frequency-aware modulation
+                if freq.get("diag_scale", 0.0) > 0 and any(d in frag_lower for d in ("fail", "failed", "error", "protect", "overload", "loss", "phase", "slip", "start", "drop", "dropped", "fault", "pressure", "miss")):
+                    score += 0.28 * freq.get("diag_scale", 0.0)
+                # causal queries demote pure status/ready lines
+                if freq.get("class") == "causal" and any(d in frag_lower for d in ("ready signal", "signal sent", "confirmed grip", "before conveyor")):
+                    score *= 0.55
+                if freq.get("process_bias", 0.0) > 0 and any(p in frag_lower for p in ("process", "step", "method", "flow", "sequence", "start", "assemble")):
+                    score += 0.15 * freq.get("process_bias", 0.0)
+                if freq.get("entity_bias", 0.0) > 0 and any(e in frag_lower for e in ("person", "name", "who", "author")):
+                    score += 0.12 * freq.get("entity_bias", 0.0)
+
+                # ---- Specificity / density / FULL demotion (tight answers preferred) ----
+                # Density: matching tokens as fraction of residual content tokens
+                res_tok_count = max(1, len(res.content_set))
+                density = hits / res_tok_count if hits else 0.0
+                score += min(0.22, density * 0.55)
+
+                # Length dampener: long dumps lose when lexical coverage is comparable
                 frag_len = len(res.fragment)
-                if frag_len > 800:
-                    length_penalty += 0.16
-                elif frag_len > 400:
-                    length_penalty += 0.08
-                if any(t in q_lower for t in ("exact", "specific", "strict", "verbatim", "literal")) and frag_len > 250:
-                    length_penalty += 0.1
-                density = hits / max(1, len(res.content_set))
-                score += min(0.12, density * 0.4)
-                specificity = len([t for t in res.content_set if len(t) > 5]) / max(1, len(res.content_set))
-                score += min(0.1, specificity * 0.18)
-                key_nouns = sum(1 for t in qset if len(t) > 4 and t in res.content_set)
-                score += min(0.08, key_nouns * 0.03)
-                if any(t in q_lower for t in ("how many", "count", "amount")):
-                    if re.search(r"\b\d+(\.\d+)?\b", res.fragment):
-                        score += 0.14
-                if freq.get("class") == "quantity":
-                    if re.search(r"\b\d+(\.\d+)?\b", res.fragment):
-                        score += 0.20
-                    elif any(w in frag_lower for w in ("error", "fault", "failed", "indicates")):
-                        score *= 0.70
-                if any(t in q_lower for t in ("why", "cause", "because", "reason")):
-                    if any(k in frag_lower for k in ("because", "due to", "caused", "therefore")):
-                        score += 0.12
-                if any(t in q_lower for t in ("diagnose", "symptom", "treat")):
-                    if any(k in frag_lower for k in ("symptom", "diagnose", "treat", "treatment")):
-                        score += 0.10
-                score -= length_penalty
-                score += float(np.clip(res.value, -0.2, 0.2))
-                lexical_signal = hits + (1 if exact_sub else 0)
+                if frag_len > 420:
+                    # progressive soft penalty; keeps long residuals usable but rarely primary
+                    length_penalty = min(0.28, (frag_len - 420) / 2800.0)
+                    score *= (1.0 - length_penalty)
+
+                # Explicit _FULL residual demotion (still available, rarely wins)
+                is_full = primary_tag.endswith("_full") or primary_tag.endswith("full") or "_full::" in frag_lower
+                if is_full:
+                    score *= 0.72
+                    # extra demotion if a query token already lives in a tighter tag elsewhere
+                    # (handled downstream by synthesize rank_key as well)
+
+                # Stronger primary-tag exactness when query mentions the concept
+                if primary_tag and len(primary_tag) >= 4:
+                    tag_tokens_set = set(primary_tag.replace("_", " ").split())
+                    tag_overlap = len(tag_tokens_set & qset)
+                    if tag_overlap >= 1:
+                        score += 0.18 * tag_overlap
+                    # exact tag token present in query is decisive
+                    for tt in tag_tokens_set:
+                        if len(tt) >= 4 and tt in q_lower:
+                            score += 0.25
+                            break
+
+                # treat fuzzy/morphological hits + synonym bridges as partial lexical signal
+                soft_hits = fuzzy_token_hits(qset, res.content_set) if qset else 0.0
+                if bridge_hits:
+                    soft_hits = max(soft_hits, 0.70)
+                lexical_signal = hits + (1 if exact_sub else 0) + (1 if soft_hits >= 0.55 else 0)
                 if lexical_signal == 0:
-                    score *= 0.04
-                elif coverage < 0.15 and fuzzy_norm < 0.3 and not exact_sub:
-                    score *= 0.35
-                scores.append((res, float(min(1.0, score))))
+                    score *= 0.03
+                    if r > 0.58:
+                        try:
+                            phase_factor = (int(res.residual_id[:4], 16) % 100) / 100.0
+                        except (TypeError, ValueError):
+                            phase_factor = 0.0
+                        score += 0.18 * phase_factor * freq.get("fluct_open", 0.35)
+                elif hits == 0 and soft_hits >= 0.65:
+                    # soft-only match: mild damp, keep bridge score
+                    score *= 0.55
+                    score += min(0.25, soft_hits * 0.15)
+                elif coverage < 0.15 and not exact_sub and soft_hits < 0.65:
+                    score *= 0.30
+                elif hits == 1 and not exact_sub:
+                    score *= 0.68
+
+                scores.append((res, float(min(1.5, score))))  # headroom so conceptual boosts can break ties
             scores.sort(key=lambda x: -x[1])
             return scores[:top_k]
 
@@ -1065,29 +1232,50 @@ class CoherentVoid:
             # Bound query-chain index growth while preserving append-only residual history.
             self.field._domain_index["query"] = self.field._domain_index["query"][-self._query_log_limit:]
 
-    def _vibrate_residuals(self, ranked: List[Tuple[Residual, float]], intent: str) -> List[Tuple[Residual, float, RealityCore]]:
-        vibrated: List[Tuple[Residual, float, RealityCore]] = []
-        cores: List[Tuple[Residual, float, RealityCore]] = []
-        for res, score in ranked[:6]:
-            core = deepcopy(res.core) if res.core is not None else RealityCore(scale=1.0 + score)
+    def _vibrate_residuals(self, candidates: List[Tuple[Residual, float]]) -> List[str]:
+        """Mean-field coupling reorder of grounded candidates."""
+        if not candidates:
+            return []
+        cores = []
+        for res, score in candidates[:6]:
+            core = res.ensure_core(scale=1.0 + score)
             core.force = score * 1.2
             cores.append((res, score, core))
+
         for _ in range(self.vibrate_steps):
             mean_phase = sum(c.phase for _, _, c in cores) / max(1, len(cores))
             for res, score, core in cores:
                 core.force = self.coupling * (mean_phase - core.phase) + score * 0.3
                 core.step(self.vibrate_dt)
+
+        # re-rank by blend of original score and coherence (inverse phase distance to mean)
         mean_phase = sum(c.phase for _, _, c in cores) / max(1, len(cores))
+        ranked = []
         for res, score, core in cores:
             coherence = 1.0 / (1.0 + abs(core.phase - mean_phase))
-            adjusted = float(np.clip(0.72 * score + 0.28 * coherence, 0.0, 1.0))
-            vibrated.append((res, adjusted, core))
-        vibrated.sort(key=lambda x: -x[1])
-        return vibrated
+            blended = 0.72 * score + 0.28 * coherence
+            ranked.append((res, blended))
+        ranked.sort(key=lambda x: -x[1])
+
+        seen = set()
+        out = []
+        for res, _ in ranked:
+            key = res.fragment[:80].lower()
+            if key not in seen:
+                seen.add(key)
+                out.append(res.fragment)
+            if len(out) >= 3:
+                break
+        return out
 
     def _bellman_update(self, winners: List[Residual], reward: float = 0.85, alpha: float = 0.12, gamma: float = 0.90) -> None:
+        """Lightweight Bellman-style value update.
+        Successful residuals gain value; nearby competitors receive a mild decay.
+        False / low-utility knowledge is gradually phased out of ranking preference.
+        """
         if not winners:
             return
+        # max value among current knowledge (excluding query/rejected)
         max_v = 0.50
         for r in self.field.residuals:
             if r.domain in ("query", "rejected"):
@@ -1100,9 +1288,12 @@ class CoherentVoid:
                 continue
             v = float(getattr(r, "value", 0.50))
             if r.residual_id in winner_ids:
+                # positive update toward target
                 r.value = max(0.05, min(1.0, (1.0 - alpha) * v + alpha * target))
+                # slight coherence lift on proven residuals
                 r.coherence = min(1.0, r.coherence + 0.01)
             else:
+                # slow global decay so unused / conflicting knowledge loses preference
                 r.value = max(0.05, v * 0.997)
 
     def project(self, query: str, mode: str = "exact", source: str = "user") -> str:
@@ -1133,8 +1324,12 @@ class CoherentVoid:
         if mode == "synthesize":
             intent = classify_intent(query)
             freq = question_frequency(query)
-            recover = [(res, score) for res, score in self.field.rank(query, top_k=32) if res.domain != "query"]
-            candidates = recover[:16]
+            recover = [
+                (res, score)
+                for res, score in self.field.rank(query, top_k=32, freq=freq)
+                if res.domain not in ("query", "rejected")
+            ]
+            candidates: List[Tuple[Residual, float]] = recover[:16]
             if qset:
                 for res, score in recover[16:28]:
                     if score < 0.38:
@@ -1144,50 +1339,121 @@ class CoherentVoid:
             if not candidates:
                 self.invention_refusals += 1
                 return self._REFUSAL
-            candidates = self._vibrate_residuals(candidates, intent)
-            preconceptual = []
-            others = []
-            for res, score, core_state in candidates:
+
+            vibrated_list = self._vibrate_residuals(candidates)
+            vibrated_rank = {frag: (len(vibrated_list) - idx) for idx, frag in enumerate(vibrated_list)}
+            ordered: List[Tuple[Residual, float]] = []
+            seen_ids: Set[str] = set()
+            for res, score in candidates:
+                adjusted = score
                 if res.imprint_layer in {"deep", "medium"} and res.coherence >= 0.88:
-                    preconceptual.append((res, score + 0.03, core_state))
-                else:
-                    others.append((res, score, core_state))
-            ordered = preconceptual + others
-            def _intent_key(item: Tuple[Residual, float, RealityCore]) -> Tuple[float, float, float, float, float]:
-                res, score, _ = item
+                    adjusted += 0.03
+                if res.fragment in vibrated_rank:
+                    adjusted += 0.02 * vibrated_rank[res.fragment]
+                if res.residual_id not in seen_ids:
+                    seen_ids.add(res.residual_id)
+                    ordered.append((res, adjusted))
+
+            force_needles: Tuple[str, ...] = ()
+            if any(w in q_lower for w in ("why", "origin", "began", "built", "started")):
+                force_needles = ("origin", "began as", "memory bottleneck", "geometry of stored")
+            elif any(w in q_lower for w in ("unused", "decay", "decayed", "disappear")):
+                force_needles = (
+                    "slowly decay",
+                    "decay never deletes",
+                    "remain fully visible",
+                    "surface decayed",
+                    "ascending value",
+                )
+            elif any(w in q_lower for w in ("invent", "invention")):
+                force_needles = ("no free invention", "supported by locked")
+
+            def _body_text(text: str) -> str:
+                text = text.strip()
+                parts = text.split("::", 2)
+                if len(parts) >= 3:
+                    return parts[2].strip()
+                if " | " in text:
+                    return text.split(" | ", 1)[1].strip()
+                if len(parts) == 2:
+                    return parts[1].strip()
+                return text
+
+            def _is_full_fragment(text: str) -> bool:
+                head = text.split(" | ")[0] if " | " in text else text
+                parts = [p for p in head.lower().split("::") if p]
+                tag = parts[1] if len(parts) >= 2 else (parts[0] if parts else "")
+                return tag.endswith("_full") or tag.endswith("full") or "_full::" in text.lower()
+
+            def rank_key(item: Tuple[Residual, float]) -> Tuple[float, float, float, float, float, float, float, float]:
+                res, score = item
                 frag = res.fragment.lower()
-                diagnose = 1.0 if intent == "diagnose" and any(k in frag for k in ("symptom", "cause", "treat", "failed", "fault")) else 0.0
-                quantity = 1.0 if freq.get("class") == "quantity" and re.search(r"\b\d+(\.\d+)?\b", res.fragment) else 0.0
-                conceptual = 1.0 if (intent == "why" and any(k in frag for k in ("origin", "began", "memory bottleneck"))) else 0.0
-                tightness = 1.0 if q_lower in frag else 0.0
-                tag_hit = 1.0 if self.field._primary_tag_hit(query, res.fragment) else 0.0
-                return (diagnose, quantity, conceptual, tightness, tag_hit + score)
-            ordered.sort(key=_intent_key, reverse=True)
-            top: List[str] = []
-            seen: Set[str] = set()
-            winners: List[Residual] = []
-            for res, score, core_state in ordered:
+                exact = 1.0 if (q_lower and q_lower in frag) else 0.0
+                soft = fuzzy_token_hits(qset, res.content_set) if qset else 0.0
+                parts = [p for p in frag.split("::") if p]
+                primary_tag = parts[1] if len(parts) >= 2 else (parts[0] if parts else "")
+                tag_hit = 0.0
+                for t in qset:
+                    if len(t) >= 4 and (t == primary_tag or t in primary_tag or primary_tag.startswith(t)):
+                        tag_hit = 1.0
+                        break
+                force = 1.0 if force_needles and any(needle in frag for needle in force_needles) else 0.0
+                preconcept = 1.0 if (res.imprint_layer in {"deep", "medium"} and res.coherence >= 0.88) else 0.0
+                vibrate = float(vibrated_rank.get(res.fragment, 0.0))
+                full_penalty = 0.0 if _is_full_fragment(res.fragment) else 1.0
+                return (force, exact, tag_hit, full_penalty, preconcept, vibrate, soft, score)
+
+            ordered.sort(key=rank_key, reverse=True)
+            primary_res: Optional[Residual] = None
+            primary_text = ""
+            support_res: Optional[Residual] = None
+            support_text = ""
+
+            for res, score in ordered:
+                frag_lower = res.fragment.lower()
                 if score < 0.48:
                     continue
-                if qset and fuzzy_token_hits(qset, res.content_set) < 0.20 and q_lower not in res.fragment.lower():
+                soft = fuzzy_token_hits(qset, res.content_set) if qset else 0.0
+                if qset and soft < 0.20 and q_lower not in frag_lower:
                     continue
-                key = res.fragment[:120].lower()
-                if key in seen:
-                    continue
-                seen.add(key)
-                top.append(res.fragment.strip())
-                res.core = core_state
-                winners.append(res)
-                if len(top) >= 3:
-                    break
-            if not top:
+                primary_res = res
+                primary_text = res.fragment.strip()
+                break
+            if not primary_text:
                 self.invention_refusals += 1
                 return self._REFUSAL
+
+            primary_full = _is_full_fragment(primary_text)
+            primary_body = _body_text(primary_text).lower()
+            for res, score in ordered:
+                if primary_res is not None and res.residual_id == primary_res.residual_id:
+                    continue
+                if score < 0.44:
+                    continue
+                cand = res.fragment.strip()
+                cand_body = _body_text(cand).lower()
+                if not cand_body or cand_body == primary_body:
+                    continue
+                cand_full = _is_full_fragment(cand)
+                if primary_full and cand_full:
+                    continue
+                if cand_full and not primary_full:
+                    continue
+                soft = fuzzy_token_hits(qset, res.content_set) if qset else 0.0
+                if qset and soft < 0.16 and q_lower not in cand.lower():
+                    continue
+                support_res = res
+                support_text = cand
+                break
+
+            winners = [primary_res] if primary_res is not None else []
+            if support_res is not None:
+                winners.append(support_res)
             self._bellman_update(
                 winners,
                 reward=0.88 if (intent == "diagnose" or freq.get("class") == "quantity") else 0.78,
             )
-            answer = format_intent_answer(top, intent)
+            answer = format_intent_answer(intent, primary_text, support_text)
             if not answer:
                 self.invention_refusals += 1
                 return self._REFUSAL
