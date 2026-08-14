@@ -26,7 +26,7 @@ def main(argv: Optional[list[str]] = None) -> int:
 
     if args.network_demo:
         mgr = ResidualNetworkManager()
-        net1 = mgr.create_network("line_a", secret="secret-a", initial_nodes=["node_1"])
+        mgr.create_network("line_a", secret="secret-a", initial_nodes=["node_1"])
         mgr.create_network("line_b", secret="secret-b", initial_nodes=["node_2"])
         node = mgr.get_node("line_a", "node_1")
         node.lock_text("NETWORK::DEMO::OK", domain="general")

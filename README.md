@@ -100,9 +100,10 @@ residual-void --version
 - All residuals are HMAC-SHA256 signed and Blake2b hashed for deduplication.
 - Each `SecureNode` enforces per-node authenticated lock/project operations.
 - Nonce + time-window replay protection is active on the network manager path.
-- **Change `SHARED_SECRET` in `residual_void_production.py` before deploying.**
+- **Set a strong secret via the `ResidualVoid(secret=...)` constructor or your config file's `security.secret_key` field. Never use the default development secret in production.**
 - Use long, high-entropy secrets. Rotate secrets regularly.
 - Isolate secrets per environment / tenant / network.
+- If using `residual_void_production.py` directly, replace the `SHARED_SECRET` constant before deploying.
 
 ---
 

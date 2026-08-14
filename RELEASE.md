@@ -51,8 +51,7 @@ pip install -e .
 
 ## Security Notes
 
-⚠️ **Critical:** Change `SHARED_SECRET` in `residual_void_production.py` before deploying.
-Use a cryptographically secure random value (e.g., `secrets.token_bytes(32)`).
+⚠️ **Critical:** Set a strong secret via `ResidualVoid(secret=...)` or the config file's `security.secret_key` field. Never use the default development secret in production. If using `residual_void_production.py` directly, replace the `SHARED_SECRET` constant with a cryptographically secure random value (e.g., `secrets.token_bytes(32)`).
 
 ## Version History
 

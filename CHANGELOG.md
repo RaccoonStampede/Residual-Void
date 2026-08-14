@@ -27,6 +27,19 @@ All notable changes to Residual-Void will be documented in this file.
 - `geometry` and `mind` layers previously optional are now loaded automatically if available
 - `SecureNode` constructor expects a `CoherentVoid` instance (pass `void._void`), unchanged from v2.0
 
+## [2.0.0] - 2026-08-13
+
+### Changed
+- Simplified default path to lean permanent core with cryptographic hash chain
+- Geometry/mind/Pi-Helix layers moved to optional/experimental (not loaded by default)
+- `pyproject.toml` version bumped to `2.0.0`
+
+### Added
+- Append-only residual locking with SHA-256 hash chain (`prev_hash` → `chain_hash`)
+- Dual projection modes (`exact`, `synthesize`) with hard refusal gates
+- Packed 32-byte signatures for efficient matching and ranking
+- `ResidualNetworkManager` with isolated secrets, key rotation, nonce replay protection
+
 ## [0.1.0] - 2026-08-12
 
 ### Added
