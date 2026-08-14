@@ -51,9 +51,24 @@ class ResidualVoid:
     # ------------------------------------------------------------------
     # Simple write path
     # ------------------------------------------------------------------
-    def lock(self, text: str, domain: str = "general", protect: bool = True) -> str:
+    def lock(
+        self,
+        text: str,
+        domain: str = "general",
+        protect: bool = True,
+        shell: Optional[int] = None,
+        imprint_layer: str = "medium",
+        coherence: float = 0.85,
+    ) -> str:
         """Lock text directly via HMAC signature; returns 'locked' or error reason."""
-        return self._node.lock_text(text, domain=domain, protect=protect)
+        return self._node.lock_text(
+            text,
+            domain=domain,
+            protect=protect,
+            shell=shell,
+            imprint_layer=imprint_layer,
+            coherence=coherence,
+        )
 
     def lock_and_confirm(
         self,
@@ -155,20 +170,19 @@ class ResidualVoid:
                     "imprint_layer": r.imprint_layer,
                     "coherence": r.coherence,
                     "value": r.value,
-                    "freqs": dict(r.freqs),
+                    "freqs": list(r.freqs),
                 }
             )
         return {
             "label": "",
             "name": self._void.name,
-            "secret": self._secret_str,
             "residuals": residuals,
             "pending": deepcopy(self._pending),
             "captured_at": time.time(),
         }
 
     def _load_state_dict(self, state: Dict[str, Any]) -> None:
-        secret = str(state.get("secret", self._secret_str))
+        secret = self._secret_str
         name = str(state.get("name", "void"))
         new_void = CoherentVoid(name=name, secret=secret)
         new_node = SecureNode(f"__facade__{id(self)}", new_void)
@@ -185,7 +199,7 @@ class ResidualVoid:
                 imprint_layer=str(item.get("imprint_layer", "fast")),
                 coherence=float(item.get("coherence", 0.85)),
                 value=float(item.get("value", 0.0)),
-                freqs=item.get("freqs") if isinstance(item.get("freqs"), dict) else None,
+                freqs=item.get("freqs") if isinstance(item.get("freqs"), list) else None,
             )
             if ok:
                 new_void.lock_count += 1

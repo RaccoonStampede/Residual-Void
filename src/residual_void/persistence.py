@@ -45,8 +45,23 @@ class PersistentVoid(ResidualVoid):
             if result not in {"locked", "duplicate"}:
                 raise ValueError(f"broken_chain_lock_line_{index}:{result}")
 
-    def lock(self, text: str, domain: str = "general", protect: bool = True) -> str:
-        result = super().lock(text, domain=domain, protect=protect)
+    def lock(
+        self,
+        text: str,
+        domain: str = "general",
+        protect: bool = True,
+        shell: Optional[int] = None,
+        imprint_layer: str = "medium",
+        coherence: float = 0.85,
+    ) -> str:
+        result = super().lock(
+            text,
+            domain=domain,
+            protect=protect,
+            shell=shell,
+            imprint_layer=imprint_layer,
+            coherence=coherence,
+        )
         if result == "locked":
             self._append_record({"text": text, "domain": domain, "protect": protect})
         return result
