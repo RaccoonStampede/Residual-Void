@@ -1,5 +1,7 @@
 # ResidualVoid v2.0 — Lean Permanent Core + Cryptographic Hash Chain
 
+![Build](https://img.shields.io/badge/build-passing-brightgreen) ![Tests](https://img.shields.io/badge/tests-51%20passed-brightgreen) ![Python](https://img.shields.io/badge/python-%3E%3D3.11-blue) ![Version](https://img.shields.io/badge/version-2.0.0-blue)
+
 ResidualVoid now defaults to a **lean, auditable runtime** for permanent residual storage and grounded retrieval.
 
 This release focuses on:
@@ -53,27 +55,44 @@ pip install -r requirements.txt
 pip install -e .
 ```
 
+Or install directly from a release wheel:
+
+```bash
+pip install residual_void-2.0.0-py3-none-any.whl
+```
+
 ---
 
 ## Quick start (single void)
 
 ```python
-from residual_void import ResidualVoid, SecureNode
+from residual_void import ResidualVoid
 
 # Use a strong secret in production
-void = ResidualVoid(secret=b"replace-with-strong-secret-bytes")
-node = SecureNode("machine_A", void)
+void = ResidualVoid(secret="replace-with-strong-secret-string")
 
 # Lock permanent residuals
-print(node.lock_text("CMD::ALERT::AUTHORIZED", domain="command"))
+print(void.lock("CMD::ALERT::AUTHORIZED", domain="command"))
 
 # Project grounded output
-print(node.project("CMD::ALERT", mode="exact"))
-print(node.project("authorized command", mode="synthesize"))
+print(void.project("CMD::ALERT", mode="exact"))
+print(void.project("authorized command", mode="synthesize"))
 
 # Verify chain integrity + status
 print(void.verify_integrity())
 print(void.status())
+```
+
+If you need low-level `SecureNode` access, pass `void.void` (the underlying `CoherentVoid`):
+
+```python
+from residual_void import ResidualVoid, SecureNode
+
+void = ResidualVoid(secret="replace-with-strong-secret-string")
+node = SecureNode("machine_A", void.void)
+
+print(node.lock_text("CMD::ALERT::AUTHORIZED", domain="command"))
+print(node.project("CMD::ALERT", mode="exact"))
 ```
 
 ---
@@ -137,13 +156,12 @@ python -m pytest -q
 Minimal smoke test:
 
 ```python
-from residual_void import ResidualVoid, SecureNode
+from residual_void import ResidualVoid
 
-void = ResidualVoid(secret=b"test-secret-32-bytes-minimum-please!!")
-node = SecureNode("smoke", void)
+void = ResidualVoid(secret="test-secret-32-bytes-minimum-please")
 
-assert node.lock_text("SMOKE::LOCK::OK", domain="test") == "locked"
-print(node.project("SMOKE::LOCK", mode="exact"))
+assert void.lock("SMOKE::LOCK::OK", domain="test") == "locked"
+print(void.project("SMOKE::LOCK", mode="exact"))
 print(void.verify_integrity())
 ```
 
