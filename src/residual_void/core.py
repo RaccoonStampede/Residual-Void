@@ -47,6 +47,17 @@ PHRASE_BRIDGES = {
     "invent new facts": ["no free invention", "supported by locked"],
 }
 
+TOKEN_BRIDGES = {
+    "bond": ["ground", "grounding", "bonded", "bond"],
+    "bonded": ["ground", "grounding", "bond"],
+    "ground": ["grounding", "bond", "bonded"],
+    "grounding": ["ground", "bond", "bonded"],
+    "protect": ["overload", "protect", "protection", "relay"],
+    "protection": ["overload", "protect", "relay"],
+    "overload": ["protect", "protection", "thermal", "relay"],
+    "frame": ["grounding", "ground", "bond", "bonded"],
+}
+
 
 def tokenize_text(text: str) -> List[str]:
     return re.findall(r"[a-zA-Z0-9_]+", text.lower())
@@ -873,19 +884,9 @@ class CoherentField:
                     if phrase in frag_lower:
                         score += 0.22
                 # light synonym / morphological bridges
-                bridges = {
-                    "bond": ["ground", "grounding", "bonded", "bond"],
-                    "bonded": ["ground", "grounding", "bond"],
-                    "ground": ["grounding", "bond", "bonded"],
-                    "grounding": ["ground", "bond", "bonded"],
-                    "protect": ["overload", "protect", "protection", "relay"],
-                    "protection": ["overload", "protect", "relay"],
-                    "overload": ["protect", "protection", "thermal", "relay"],
-                    "frame": ["grounding", "ground", "bond", "bonded"],
-                }
                 bridge_hits = 0
                 for t in qset:
-                    for alt in bridges.get(t, []):
+                    for alt in TOKEN_BRIDGES.get(t, []):
                         if alt in frag_lower or alt == primary_tag:
                             score += 0.32
                             bridge_hits += 1
@@ -927,15 +928,15 @@ class CoherentField:
                     score += 0.35 * resonance_score(qf, rf)
 
                 # frequency-aware modulation
-                if freq["diag_scale"] > 0 and any(d in frag_lower for d in ("fail", "failed", "error", "protect", "overload", "loss", "phase", "slip", "start", "drop", "dropped", "fault", "pressure", "miss")):
-                    score += 0.28 * freq["diag_scale"]
+                if freq.get("diag_scale", 0.0) > 0 and any(d in frag_lower for d in ("fail", "failed", "error", "protect", "overload", "loss", "phase", "slip", "start", "drop", "dropped", "fault", "pressure", "miss")):
+                    score += 0.28 * freq.get("diag_scale", 0.0)
                 # causal queries demote pure status/ready lines
-                if freq["class"] == "causal" and any(d in frag_lower for d in ("ready signal", "signal sent", "confirmed grip", "before conveyor")):
+                if freq.get("class") == "causal" and any(d in frag_lower for d in ("ready signal", "signal sent", "confirmed grip", "before conveyor")):
                     score *= 0.55
-                if freq["process_bias"] > 0 and any(p in frag_lower for p in ("process", "step", "method", "flow", "sequence", "start", "assemble")):
-                    score += 0.15 * freq["process_bias"]
-                if freq["entity_bias"] > 0 and any(e in frag_lower for e in ("person", "name", "who", "author")):
-                    score += 0.12 * freq["entity_bias"]
+                if freq.get("process_bias", 0.0) > 0 and any(p in frag_lower for p in ("process", "step", "method", "flow", "sequence", "start", "assemble")):
+                    score += 0.15 * freq.get("process_bias", 0.0)
+                if freq.get("entity_bias", 0.0) > 0 and any(e in frag_lower for e in ("person", "name", "who", "author")):
+                    score += 0.12 * freq.get("entity_bias", 0.0)
 
                 # ---- Specificity / density / FULL demotion (tight answers preferred) ----
                 # Density: matching tokens as fraction of residual content tokens
@@ -1339,15 +1340,16 @@ class CoherentVoid:
                 self.invention_refusals += 1
                 return self._REFUSAL
 
-            vibrated = set(self._vibrate_residuals(candidates))
+            vibrated_list = self._vibrate_residuals(candidates)
+            vibrated_rank = {frag: (len(vibrated_list) - idx) for idx, frag in enumerate(vibrated_list)}
             ordered: List[Tuple[Residual, float]] = []
             seen_ids: Set[str] = set()
             for res, score in candidates:
                 adjusted = score
                 if res.imprint_layer in {"deep", "medium"} and res.coherence >= 0.88:
                     adjusted += 0.03
-                if res.fragment in vibrated:
-                    adjusted += 0.04
+                if res.fragment in vibrated_rank:
+                    adjusted += 0.02 * vibrated_rank[res.fragment]
                 if res.residual_id not in seen_ids:
                     seen_ids.add(res.residual_id)
                     ordered.append((res, adjusted))
@@ -1386,7 +1388,7 @@ class CoherentVoid:
                         break
                 force = 1.0 if force_needles and any(needle in frag for needle in force_needles) else 0.0
                 preconcept = 1.0 if (res.imprint_layer in {"deep", "medium"} and res.coherence >= 0.88) else 0.0
-                vibrate = 1.0 if res.fragment in vibrated else 0.0
+                vibrate = float(vibrated_rank.get(res.fragment, 0.0))
                 full_penalty = 0.0 if _is_full_fragment(res.fragment) else 1.0
                 return (force, exact, tag_hit, full_penalty, preconcept, vibrate, soft, score)
 
