@@ -41,8 +41,6 @@ __all__ = [
     "inject_document",
 ]
 
-# Convenience document injector
-ResidualVoid.inject = inject_document  # type: ignore[attr-defined]
 
 # Optional geometry/mind layers – available on default path in v2.1
 try:

@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 from .core import CoherentVoid, Residual, SecureNode, canonical_payload, hash_text, sign_packet
+from .ingestion import inject_document
 
 
 class ResidualVoid:
@@ -131,6 +132,15 @@ class ResidualVoid:
         if result in (CoherentVoid._REFUSAL, "Unknown mode"):
             return {"source": "void", "results": []}
         return {"source": "void", "results": [{"payload": result, "score": 1.0}]}
+
+    def inject(
+        self,
+        full_text: str,
+        domain: str = "DOC",
+        title: str = "SOURCE",
+        protect: bool = True,
+    ) -> Dict[str, int]:
+        return inject_document(self, full_text=full_text, domain=domain, title=title, protect=protect)
 
     def _state_dict(self) -> Dict[str, Any]:
         residuals = []

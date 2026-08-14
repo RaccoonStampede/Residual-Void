@@ -10,6 +10,7 @@ import threading
 import time
 import uuid
 from collections import Counter, defaultdict
+from copy import deepcopy
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Set, Tuple, Union
 
@@ -53,7 +54,7 @@ def content_tokens(text: str) -> List[str]:
 
 def _stem_token(token: str) -> str:
     t = token.lower()
-    for suffix in ("ing", "edly", "edly", "ed", "ies", "es", "s", "ment"):
+    for suffix in ("edly", "ment", "ing", "ly", "ies", "ed", "es", "s"):
         if t.endswith(suffix) and len(t) > len(suffix) + 2:
             if suffix == "ies":
                 return t[:-3] + "y"
@@ -85,7 +86,7 @@ def _jaro_winkler(a: str, b: str) -> float:
         return 1.0
     if not a or not b:
         return 0.0
-    max_dist = max(len(a), len(b)) // 2 - 1
+    max_dist = max(0, max(len(a), len(b)) // 2 - 1)
     a_match = [False] * len(a)
     b_match = [False] * len(b)
     matches = 0
@@ -640,7 +641,7 @@ class CoherentField:
                     length_penalty += 0.16
                 elif frag_len > 400:
                     length_penalty += 0.08
-                if "full" == q_intent and frag_len > 250:
+                if q_intent == "tightness" and frag_len > 250:
                     length_penalty += 0.1
                 density = hits / max(1, len(res.content_set))
                 score += min(0.12, density * 0.4)
@@ -880,14 +881,13 @@ class CoherentVoid:
             # Bound query-chain index growth while preserving append-only residual history.
             self.field._domain_index["query"] = self.field._domain_index["query"][-self._query_log_limit:]
 
-    def _vibrate_residuals(self, ranked: List[Tuple[Residual, float]], intent: str) -> List[Tuple[Residual, float]]:
-        vibrated: List[Tuple[Residual, float]] = []
+    def _vibrate_residuals(self, ranked: List[Tuple[Residual, float]], intent: str) -> List[Tuple[Residual, float, RealityCore]]:
+        vibrated: List[Tuple[Residual, float, RealityCore]] = []
         for res, score in ranked:
-            core = res.core or RealityCore()
+            core = deepcopy(res.core) if res.core is not None else RealityCore()
             vib = core.step(score, intent=intent)
-            res.core = core
             adjusted = float(np.clip(score * 0.82 + vib * 0.18, 0.0, 1.0))
-            vibrated.append((res, adjusted))
+            vibrated.append((res, adjusted, core))
         vibrated.sort(key=lambda x: -x[1])
         return vibrated
 
@@ -900,6 +900,7 @@ class CoherentVoid:
         self.project_count += 1
         self._log_query(query, source=source)
         ranked = self.field.rank(query)
+        ranked = [(res, score) for res, score in ranked if res.domain != "query"]
         if not ranked or ranked[0][1] < self.min_score:
             self.invention_refusals += 1
             return self._REFUSAL
@@ -921,7 +922,7 @@ class CoherentVoid:
             return top_res.fragment
         if mode == "synthesize":
             intent = classify_intent(query)
-            recover = self.field.rank(query, top_k=32)
+            recover = [(res, score) for res, score in self.field.rank(query, top_k=32) if res.domain != "query"]
             candidates = recover[:16]
             if qset:
                 for res, score in recover[16:28]:
@@ -935,14 +936,14 @@ class CoherentVoid:
             candidates = self._vibrate_residuals(candidates, intent)
             preconceptual = []
             others = []
-            for res, score in candidates:
+            for res, score, core_state in candidates:
                 if res.imprint_layer in {"deep", "medium"} and res.coherence >= 0.88:
-                    preconceptual.append((res, score + 0.03))
+                    preconceptual.append((res, score + 0.03, core_state))
                 else:
-                    others.append((res, score))
+                    others.append((res, score, core_state))
             ordered = preconceptual + others
-            def _intent_key(item: Tuple[Residual, float]) -> Tuple[float, float, float, float, float]:
-                res, score = item
+            def _intent_key(item: Tuple[Residual, float, RealityCore]) -> Tuple[float, float, float, float, float]:
+                res, score, _ = item
                 frag = res.fragment.lower()
                 diagnose = 1.0 if intent == "diagnose" and any(k in frag for k in ("symptom", "cause", "treat")) else 0.0
                 quantity = 1.0 if intent == "quantity" and re.search(r"\b\d+(\.\d+)?\b", res.fragment) else 0.0
@@ -954,7 +955,7 @@ class CoherentVoid:
             top: List[str] = []
             seen: Set[str] = set()
             winners: List[Residual] = []
-            for res, score in ordered:
+            for res, score, core_state in ordered:
                 if score < 0.48:
                     continue
                 if qset and fuzzy_token_hits(qset, res.content_set) < 0.20 and q_lower not in res.fragment.lower():
@@ -964,6 +965,7 @@ class CoherentVoid:
                     continue
                 seen.add(key)
                 top.append(res.fragment.strip())
+                res.core = core_state
                 winners.append(res)
                 if len(top) >= 3:
                     break

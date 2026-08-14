@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import re
-from typing import Dict, List
+from typing import Dict, List, Protocol
 
-from .merged import ResidualVoid
+
+class _LockingVoid(Protocol):
+    def lock(self, text: str, domain: str = "general", protect: bool = True) -> str: ...
 
 
 def auto_segment(text: str, domain: str = "DOC", min_len: int = 50) -> List[str]:
@@ -25,7 +27,7 @@ def auto_segment(text: str, domain: str = "DOC", min_len: int = 50) -> List[str]
 
 
 def inject_document(
-    void: ResidualVoid,
+    void: _LockingVoid,
     full_text: str,
     domain: str = "DOC",
     title: str = "SOURCE",
