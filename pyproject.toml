@@ -34,4 +34,4 @@ dev = [
 [tool.setuptools]
 package-dir = {"" = "src"}
 packages = ["residual_void"]
-py-modules = ["config_loader"]
+py-modules = ["config_loader", "residual_void_hyperdrive"]
