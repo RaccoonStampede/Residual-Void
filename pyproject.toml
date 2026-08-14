@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "residual-void"
-version = "2.0.0"
-description = "Residual-Void coherence engine — hierarchical edge-nulling, nested shells, imprint layers, and god-zone regulation"
+version = "2.1.0"
+description = "Residual-Void coherence engine — unified production runtime with edge-nulling Pi-Helix, nested geometric shells, networked residual management, and god-zone regulation"
 readme = "README.md"
 license = "MIT"
 authors = [
