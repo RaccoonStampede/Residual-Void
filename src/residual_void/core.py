@@ -117,6 +117,193 @@ def verify_signature(payload: bytes, signature: bytes, secret: bytes) -> bool:
 
 
 # ============================================================
+# REALITY CORE OSCILLATOR
+# ============================================================
+@dataclass
+class RealityCore:
+    """Deterministic mean-field oscillator used for HyperDrive vibration reranking."""
+
+    phase: float = 0.0
+    vel: float = 0.0
+    reference: float = 0.0
+    scale: float = 1.0
+    force: float = 0.0
+
+    def __post_init__(self) -> None:
+        s = max(self.scale, 1e-6)
+        self.leak: float = 0.06 / (s ** 0.6)
+        self.fluidity: float = 0.6 / (s ** 0.9)
+        self.restore: float = 0.05 * (s ** 0.7)
+        self.slow_leak: float = self.leak * 0.15
+
+    def step(self, dt: float = 0.05) -> None:
+        self.vel += dt * (
+            self.force
+            - self.restore * (self.phase - self.reference)
+            - self.leak * self.vel
+        )
+        self.phase += dt * self.vel * self.fluidity
+        self.reference += dt * self.slow_leak * (self.phase - self.reference)
+        self.phase = float(np.clip(self.phase, -3.0, 3.0))
+        self.vel = float(np.clip(self.vel, -2.0, 2.0))
+
+
+# ============================================================
+# FUZZY MATCHING HELPERS
+# ============================================================
+def _levenshtein(a: str, b: str) -> int:
+    """True Levenshtein edit distance."""
+    if a == b:
+        return 0
+    if not a:
+        return len(b)
+    if not b:
+        return len(a)
+    prev = list(range(len(b) + 1))
+    for i, ca in enumerate(a, 1):
+        curr = [i] + [0] * len(b)
+        for j, cb in enumerate(b, 1):
+            curr[j] = min(
+                prev[j] + 1,
+                curr[j - 1] + 1,
+                prev[j - 1] + (0 if ca == cb else 1),
+            )
+        prev = curr
+    return prev[len(b)]
+
+
+def _jaro_winkler(s1: str, s2: str, p: float = 0.1) -> float:
+    """Jaro-Winkler similarity."""
+    if s1 == s2:
+        return 1.0
+    l1, l2 = len(s1), len(s2)
+    if l1 == 0 or l2 == 0:
+        return 0.0
+    match_dist = max(l1, l2) // 2 - 1
+    match_dist = max(match_dist, 0)
+    s1_matches = [False] * l1
+    s2_matches = [False] * l2
+    matches = transpositions = 0
+    for i in range(l1):
+        start = max(0, i - match_dist)
+        end = min(i + match_dist + 1, l2)
+        for j in range(start, end):
+            if s2_matches[j] or s1[i] != s2[j]:
+                continue
+            s1_matches[i] = s2_matches[j] = True
+            matches += 1
+            break
+    if matches == 0:
+        return 0.0
+    k = 0
+    for i in range(l1):
+        if not s1_matches[i]:
+            continue
+        while not s2_matches[k]:
+            k += 1
+        if s1[i] != s2[k]:
+            transpositions += 1
+        k += 1
+    jaro = (matches / l1 + matches / l2 + (matches - transpositions / 2) / matches) / 3
+    prefix = 0
+    for i in range(min(4, l1, l2)):
+        if s1[i] == s2[i]:
+            prefix += 1
+        else:
+            break
+    return jaro + prefix * p * (1 - jaro)
+
+
+def fuzzy_token_hits(query_tokens: set, residual_tokens: set) -> float:
+    """Hardened fuzzy token matching; returns weighted hit count."""
+    total = 0.0
+    for qt in query_tokens:
+        for rt in residual_tokens:
+            if qt == rt:
+                total += 1.00
+                break
+            if (
+                len(qt) >= 5 and len(rt) >= 5
+                and abs(len(qt) - len(rt)) <= 2
+                and (qt[:5] == rt[:5] or qt[-4:] == rt[-4:])
+                and min(len(qt), len(rt)) / max(len(qt), len(rt)) >= 0.75
+            ):
+                total += 0.65
+                break
+            if (
+                len(qt) >= 5 and len(rt) >= 5
+                and _levenshtein(qt, rt) <= 1
+                and _jaro_winkler(qt, rt) >= 0.93
+            ):
+                total += 0.70
+                break
+    return total
+
+
+# ============================================================
+# QUESTION FREQUENCY PROFILER
+# ============================================================
+_CAUSAL_WORDS = {"why", "cause", "because", "reason", "explain", "how", "mechanism", "lead", "result", "effect"}
+_PROCESS_WORDS = {"how", "process", "step", "procedure", "method", "work", "operate", "function", "flow"}
+_ENTITY_WORDS = {"who", "person", "author", "artist", "writer", "name", "character", "culture", "memoir", "people"}
+_LOCATOR_WORDS = {"where", "location", "place", "city", "country", "region", "site"}
+_SPECULATIVE_WORDS = {"could", "would", "might", "possible", "imagine", "hypothetical", "if", "suppose"}
+_WHAT_WORDS = {"what", "which", "define", "describe", "meaning", "type"}
+_FACTUAL_WORDS = {"when", "date", "year", "number", "amount", "much", "many"}
+_DIAG_WORDS = {"residual", "void", "field", "coherent", "locked", "binary", "domain", "edge", "signal", "ground", "null"}
+
+
+def question_frequency(query: str) -> Dict[str, Any]:
+    """Return a frequency profile dict describing query intent class and biases."""
+    toks = set(tokenize(query))
+    lower = query.lower()
+
+    causal = bool(toks & _CAUSAL_WORDS)
+    process = bool(toks & _PROCESS_WORDS)
+    entity = bool(toks & _ENTITY_WORDS)
+    locator = bool(toks & _LOCATOR_WORDS)
+    speculative = bool(toks & _SPECULATIVE_WORDS)
+    what = bool(toks & _WHAT_WORDS)
+    factual = bool(toks & _FACTUAL_WORDS)
+
+    if causal:
+        cls = "causal"
+    elif process and not entity:
+        cls = "process"
+    elif entity:
+        cls = "entity"
+    elif locator:
+        cls = "locator"
+    elif speculative:
+        cls = "speculative"
+    elif what:
+        cls = "what"
+    elif factual:
+        cls = "factual"
+    else:
+        cls = "neutral"
+
+    diag_hits = len(toks & _DIAG_WORDS)
+    diag_scale = min(1.0, 0.25 + 0.15 * diag_hits)
+
+    fluct_open = 0.52 if cls in ("causal", "process") else 0.46
+    soft_prefer = cls in ("entity", "what", "factual")
+    process_bias = 0.12 if cls == "process" else (0.06 if cls == "causal" else 0.0)
+    entity_bias = 0.10 if cls == "entity" else 0.0
+    spec_penalty = 0.08 if speculative else 0.0
+
+    return {
+        "class": cls,
+        "diag_scale": diag_scale,
+        "fluct_open": fluct_open,
+        "soft_prefer": soft_prefer,
+        "process_bias": process_bias,
+        "entity_bias": entity_bias,
+        "speculative": spec_penalty,
+    }
+
+
+# ============================================================
 # PI-HELIX v2 EDGE EXTRACTION
 # ============================================================
 def schumann_carrier(t, f0=7.83, harmonics=5):
@@ -266,11 +453,21 @@ class Residual:
     chain_hash: str
     protect: bool = True
     _sig_bits: np.ndarray = field(default=None, repr=False, compare=False)
+    core: Optional["RealityCore"] = field(default=None, repr=False, compare=False)
 
     def bits(self) -> np.ndarray:
+        """Lazy-cache unpacked signature bits."""
         if self._sig_bits is None:
             self._sig_bits = packed_to_bits(self.sig_packed)
         return self._sig_bits
+
+    def ensure_core(self, scale: float = 1.0) -> "RealityCore":
+        """Initialise a deterministic RealityCore seeded from the fragment hash."""
+        if self.core is None:
+            seed_val = int(hashlib.sha256(self.residual_id.encode()).hexdigest()[:8], 16)
+            phase0 = ((seed_val % 1000) / 1000.0) * 2.0 - 1.0
+            self.core = RealityCore(phase=phase0, scale=scale)
+        return self.core
 
     # Convenience aliases kept for API compatibility
     @property
@@ -376,11 +573,19 @@ class CoherentField:
                 return False, "chain tip does not match last residual"
             return True, f"chain intact ({len(self.residuals)} residuals)"
 
-    def rank(self, query: str, domain: Optional[str] = None, top_k: int = 20) -> List[tuple]:
-        """Rank residuals by lexical + hamming similarity; returns list of (Residual, score)."""
+    def rank(
+        self,
+        query: str,
+        domain: Optional[str] = None,
+        top_k: int = 20,
+        freq: Optional[Dict[str, Any]] = None,
+    ) -> List[tuple]:
+        """Rank residuals by lexical + hamming similarity with freq-aware modulation."""
         with self._lock:
             if not self.residuals:
                 return []
+            if freq is None:
+                freq = question_frequency(query)
             probe = packed_to_bits(bytes_to_bits_packed(query.encode("utf-8")))
             qset = set(content_tokens(query))
             q_lower = query.lower().strip()
@@ -415,11 +620,39 @@ class CoherentField:
                     score += 0.10
                 if res.protect:
                     score += 0.02
+
+                # -- Diagnostic word set boost ---------------------------------
+                diag_hits = len(res.content_set & _DIAG_WORDS)
+                if diag_hits:
+                    score += freq["diag_scale"] * min(1.0, diag_hits * 0.25)
+
+                # -- Process bias ---------------------------------------------
+                if freq["process_bias"] > 0:
+                    proc_like = bool(res.content_set & _PROCESS_WORDS)
+                    if proc_like:
+                        score += freq["process_bias"]
+
+                # -- Entity bias ----------------------------------------------
+                if freq["entity_bias"] > 0:
+                    entity_like = bool(res.content_set & (_ENTITY_WORDS | {"memoir", "culture"}))
+                    if entity_like:
+                        score += freq["entity_bias"]
+
+                # -- Lexical dampening ----------------------------------------
                 lexical_signal = hits + (1 if exact_sub else 0)
                 if lexical_signal == 0:
-                    score *= 0.04
+                    score *= 0.03
+                elif lexical_signal == 1 and not exact_sub:
+                    score *= 0.68
                 elif coverage < 0.15 and not exact_sub:
-                    score *= 0.35
+                    score *= 0.30
+
+                # -- Fluctuation rescue (hamming strong, lexical weak) --------
+                if lexical_signal == 0 and r > 0.58:
+                    seed_val = int(res.residual_id[:4], 16) if res.residual_id[:4].isalnum() else 0
+                    phase_factor = 0.85 + 0.15 * math.sin(seed_val * 0.017)
+                    score = max(score, r * 0.30 * phase_factor)
+
                 scores.append((res, float(min(1.0, score))))
             scores.sort(key=lambda x: -x[1])
             return scores[:top_k]
@@ -586,6 +819,10 @@ class CoherentVoid:
         self.invention_refusals = 0
         self.start_time = time.time()
         self.connected: Dict[str, float] = {}
+        # HyperDrive synthesis settings
+        self.vibrate_steps: int = 12
+        self.vibrate_dt: float = 0.08
+        self.coupling: float = 0.35
 
     def connect(self, system_id: str) -> str:
         with self._lock:
@@ -619,16 +856,85 @@ class CoherentVoid:
                 return reason
             return "ignored"
 
+    # ------------------------------------------------------------------
+    # HyperDrive: mean-field oscillator vibration reranking
+    # ------------------------------------------------------------------
+    def _vibrate_residuals(
+        self, candidates: List[Tuple["Residual", float]]
+    ) -> List[str]:
+        """
+        Short mean-field coupling loop over top grounded candidates.
+
+        Each residual gets its own RealityCore seeded deterministically from
+        its id.  After ``vibrate_steps`` coupling steps the combined oscillator
+        coherence re-ranks candidates; returns up to 3 de-duplicated fragments.
+        """
+        pool = candidates[:6]
+        if not pool:
+            return []
+
+        # Initialise / refresh cores
+        for res, score in pool:
+            c = res.ensure_core(scale=1.0 + score)
+            c.force = score * 0.8  # initial drive proportional to rank score
+
+        # Mean-field coupling loop
+        for _ in range(self.vibrate_steps):
+            mean_phase = sum(res.core.phase for res, _ in pool) / len(pool)
+            for res, _ in pool:
+                c = res.core
+                c.force += self.coupling * (mean_phase - c.phase)
+                c.step(dt=self.vibrate_dt)
+
+        # Re-rank: blend original score with oscillator coherence
+        def _coherence(core: RealityCore) -> float:
+            # proximity of phase to reference = coherence signal
+            return 1.0 / (1.0 + abs(core.phase - core.reference))
+
+        ranked_vibrated = sorted(
+            pool,
+            key=lambda x: -(0.60 * x[1] + 0.40 * _coherence(x[0].core)),
+        )
+
+        # De-duplicate and return up to 3 fragments
+        seen: set = set()
+        result: List[str] = []
+        for res, _ in ranked_vibrated:
+            key = res.fragment[:80].lower()
+            if key not in seen:
+                seen.add(key)
+                result.append(res.fragment.strip())
+            if len(result) >= 3:
+                break
+        return result
+
+    # ------------------------------------------------------------------
+    # Main projection engine
+    # ------------------------------------------------------------------
     def project(self, query: str, mode: str = "exact", source: str = "user") -> str:
         """Project query against locked residuals; returns fragment string or refusal."""
         self.project_count += 1
-        ranked = self.field.rank(query)
-        if not ranked or ranked[0][1] < self.min_score:
-            self.invention_refusals += 1
-            return self._REFUSAL
+        freq = question_frequency(query)
+
+        # Lock query into chain for traceability (domain="query")
+        q_log = f"QUERY::{source}::{mode}|{freq['class']} | {query[:200]}"
+        try:
+            self.field.store(q_log, domain="query", node_id=source, protect=False)
+        except Exception:
+            pass
+
+        ranked_raw = self.field.rank(query, freq=freq)
+        # Exclude query-domain residuals from answer candidates
+        ranked = [(r, s) for r, s in ranked_raw if r.domain != "query"]
+
         q_lower = query.lower().strip()
         qset = set(content_tokens(query))
+
+        # ── EXACT MODE ───────────────────────────────────────────────
         if mode == "exact":
+            if not ranked or ranked[0][1] < self.min_score:
+                self.invention_refusals += 1
+                return self._REFUSAL
             for res, score in ranked[:12]:
                 if q_lower and q_lower in res.fragment.lower() and score >= 0.50:
                     return res.fragment
@@ -642,27 +948,76 @@ class CoherentVoid:
                 self.invention_refusals += 1
                 return self._REFUSAL
             return top_res.fragment
+
+        # ── SYNTHESIZE MODE ──────────────────────────────────────────
         if mode == "synthesize":
-            top = []
+            floor = 0.49
+            candidates: List[Tuple[Residual, float]] = []
             seen: set = set()
+
             for res, score in ranked[:8]:
-                if score < 0.60:
+                if score < floor:
                     break
                 hits = sum(1 for t in qset if t in res.content_set) if qset else 0
                 exact_sub = bool(q_lower and q_lower in res.fragment.lower())
-                if hits == 0 and not exact_sub:
+                has_anchor = "::" in res.fragment
+
+                # Reject zero-hit / no-exact unless anchor
+                if hits == 0 and not exact_sub and not has_anchor:
                     continue
-                frag = res.fragment.strip()
-                key = frag[:80].lower()
-                if key not in seen:
-                    seen.add(key)
-                    top.append(frag)
-                if len(top) >= 3:
-                    break
-            if not top:
+
+                # Stricter single-hit threshold
+                single_threshold = 0.49 if has_anchor else 0.58
+                if hits <= 1 and not exact_sub and score < single_threshold:
+                    continue
+
+                frag_key = res.fragment[:80].lower()
+                if frag_key not in seen:
+                    seen.add(frag_key)
+                    candidates.append((res, score))
+
+            # Fluctuation recovery when no candidates from ranked pool
+            if not candidates and not ranked:
+                probe = packed_to_bits(bytes_to_bits_packed(query.encode("utf-8")))
+                soft_pool: List[Tuple[Residual, float]] = []
+                for res in self.field.residuals:
+                    if res.domain == "query":
+                        continue
+                    r = hamming_sim(probe, res.bits())
+                    fhits = fuzzy_token_hits(qset, res.content_set)
+                    base = 0.30 * r + 0.40 * (fhits / max(1, len(qset)))
+                    soft_pool.append((res, base))
+                soft_pool.sort(key=lambda x: -x[1])
+
+                open_thr = freq["fluct_open"] - freq["speculative"]
+                for res, base in soft_pool[:6]:
+                    c = res.ensure_core(scale=1.0)
+                    c.force = base
+                    for _ in range(self.vibrate_steps // 2):
+                        c.step(dt=self.vibrate_dt)
+                    coherence_val = 1.0 / (1.0 + abs(c.phase - c.reference))
+                    combined = 0.55 * base + 0.45 * coherence_val * base
+                    # Causal queries need diagnostic language
+                    if freq["class"] == "causal":
+                        if not (res.content_set & _DIAG_WORDS):
+                            continue
+                    frag_key = res.fragment[:80].lower()
+                    if combined >= open_thr and frag_key not in seen:
+                        # Final soft floor
+                        if combined >= 0.32:
+                            seen.add(frag_key)
+                            candidates.append((res, combined))
+
+            if not candidates:
                 self.invention_refusals += 1
                 return self._REFUSAL
-            return top[0] if len(top) == 1 else " || ".join(top)
+
+            vibrated = self._vibrate_residuals(candidates)
+            if not vibrated:
+                self.invention_refusals += 1
+                return self._REFUSAL
+            return vibrated[0] if len(vibrated) == 1 else " || ".join(vibrated)
+
         return "Unknown mode"
 
     def verify_integrity(self) -> Tuple[bool, str]:
