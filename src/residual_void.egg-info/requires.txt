@@ -1,6 +1,7 @@
 pyyaml>=6.0
 numpy>=1.24
 scipy>=1.10
+zeroconf>=0.132.0
 
 [dev]
 pytest>=8.0
