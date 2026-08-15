@@ -3,7 +3,7 @@ from __future__ import annotations
 import pytest
 
 from residual_void import PersistentVoid, ResidualNetworkManager, ResidualVoid, SecureNode
-from residual_void.ingestion import auto_segment
+from residual_void.ingestion import _SENTENCE_TARGET_MAX, auto_segment
 
 
 def test_cdc_heat_storm_ranking_and_synthesize() -> None:
@@ -51,6 +51,21 @@ def test_inject_document_auto_segments_and_locks() -> None:
     out = void.inject(text, domain="DOC", title="CDC", protect=True)
     assert out["segments"] >= 1
     assert out["locked"] >= 1
+
+
+def test_auto_segment_sentence_fallback_for_plain_text() -> None:
+    text = (
+        "Plain ingestion text should still split into sensible residual chunks even without structural markers. "
+        "The fallback should group nearby sentences together so each chunk stays readable and useful for retrieval. "
+        "This sample intentionally avoids headers and blank lines while keeping enough content to trigger the sentence-based path. "
+        "Each sentence contributes more detail about segmentation quality, retrieval stability, and downstream locking behavior. "
+        "The resulting residuals should no longer collapse into one oversized wall of text during ingestion."
+    )
+    segments = auto_segment(text, min_len=40)
+    assert len(segments) >= 2
+    assert all(segment.count("::") >= 2 for segment in segments)
+    bodies = [segment.split("::", 2)[2] for segment in segments]
+    assert all(body.strip() and len(body) <= _SENTENCE_TARGET_MAX for body in bodies)
 
 
 def test_persistent_void_fail_closed_on_broken_chain(tmp_path) -> None:
