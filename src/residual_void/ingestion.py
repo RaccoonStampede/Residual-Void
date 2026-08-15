@@ -73,10 +73,11 @@ def auto_segment(text: str, domain: str = "DOC", min_len: int = 50) -> List[str]
     if len(parts) < 3:
         parts = re.split(r"\n\s*\n+", text)
     normalized_parts = [part.strip() for part in parts if part.strip()]
-    if len(normalized_parts) < 3 or any(len(part) > _SENTENCE_TARGET_MAX for part in normalized_parts):
+    needs_refinement = len(normalized_parts) < 3
+    if needs_refinement or any(len(part) > _SENTENCE_TARGET_MAX for part in normalized_parts):
         refined_parts: List[str] = []
         for part in normalized_parts:
-            if len(part) > _SENTENCE_TARGET_MAX or len(normalized_parts) < 3:
+            if len(part) > _SENTENCE_TARGET_MAX or needs_refinement:
                 refined_parts.extend(_sentence_chunks(part))
             else:
                 refined_parts.append(part)

@@ -63,6 +63,7 @@ def test_auto_segment_sentence_fallback_for_plain_text() -> None:
     )
     segments = auto_segment(text, min_len=40)
     assert len(segments) >= 2
+    assert all(segment.count("::") >= 2 for segment in segments)
     bodies = [segment.split("::", 2)[2] for segment in segments]
     assert all(40 <= len(body) <= 400 for body in bodies)
 
