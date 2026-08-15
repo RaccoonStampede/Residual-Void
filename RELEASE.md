@@ -26,6 +26,7 @@ the package default, accessible via `pip install .` and `from residual_void impo
 - **Snapshot / restore / drift audit** — reproducibility and stability controls
 - **Document injection pipeline** — `auto_segment`, `inject_document`, and `ResidualVoid.inject`
 - **Transparent guest projection mode** — controlled read-only access via `ResidualNetworkManager.guest_project`
+- **HTTP service + zero-config discovery** — bundled `--serve` runtime with mDNS and well-known discovery endpoints
 
 ### Preserved from v2.0
 - Append-only residual locking with cryptographic hash chain
@@ -53,6 +54,17 @@ git clone https://github.com/RaccoonStampede/Residual-Void.git
 cd Residual-Void
 pip install -e .
 ```
+
+## Service & Discovery
+
+```bash
+residual-void --serve --port 7700
+```
+
+- `GET /.well-known/residualvoid.json` and `GET /discover` expose service metadata
+- `GET /status` returns runtime status
+- `POST /lock`, `POST /project`, and `POST /inject` expose the core runtime actions
+- `discover_and_connect()` resolves an mDNS-advertised instance and falls back to `127.0.0.1:7700`
 
 ## Security Notes
 
@@ -86,4 +98,4 @@ MIT License
 
 ---
 
-**ResidualVoid v2.1 is production-ready with unified runtime as default.** 🚀
+**ResidualVoid v2.2 is production-ready with unified runtime as default.** 🚀
