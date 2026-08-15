@@ -16,6 +16,54 @@ class _LockingVoid(Protocol):
     ) -> str: ...
 
 
+_SENTENCE_TARGET_MAX = 400
+_SENTENCE_SPLIT_RE = re.compile(r"(?<=[.!?])\s+")
+
+
+def _split_long_text(text: str, limit: int) -> List[str]:
+    words = text.split()
+    if not words:
+        return []
+    chunks: List[str] = []
+    current = words[0]
+    for word in words[1:]:
+        candidate = f"{current} {word}"
+        if len(candidate) <= limit:
+            current = candidate
+            continue
+        chunks.append(current)
+        current = word
+    chunks.append(current)
+    return chunks
+
+
+def _sentence_chunks(text: str) -> List[str]:
+    sentences = [s.strip() for s in _SENTENCE_SPLIT_RE.split(text.strip()) if s.strip()]
+    if len(sentences) <= 1:
+        return _split_long_text(text.strip(), _SENTENCE_TARGET_MAX) or [text.strip()]
+    chunks: List[str] = []
+    current = ""
+    for sentence in sentences:
+        units = (
+            _split_long_text(sentence, _SENTENCE_TARGET_MAX)
+            if len(sentence) > _SENTENCE_TARGET_MAX
+            else [sentence]
+        )
+        for unit in units:
+            if not current:
+                current = unit
+                continue
+            candidate = f"{current} {unit}"
+            if len(candidate) <= _SENTENCE_TARGET_MAX:
+                current = candidate
+                continue
+            chunks.append(current)
+            current = unit
+    if current:
+        chunks.append(current)
+    return chunks
+
+
 def auto_segment(text: str, domain: str = "DOC", min_len: int = 50) -> List[str]:
     text = text.replace("\r\n", "\n").strip()
     parts = re.split(
@@ -24,6 +72,15 @@ def auto_segment(text: str, domain: str = "DOC", min_len: int = 50) -> List[str]
     )
     if len(parts) < 3:
         parts = re.split(r"\n\s*\n+", text)
+    normalized_parts = [part.strip() for part in parts if part.strip()]
+    if len(normalized_parts) < 3 or any(len(part) > _SENTENCE_TARGET_MAX for part in normalized_parts):
+        refined_parts: List[str] = []
+        for part in normalized_parts:
+            if len(part) > _SENTENCE_TARGET_MAX or len(normalized_parts) < 3:
+                refined_parts.extend(_sentence_chunks(part))
+            else:
+                refined_parts.append(part)
+        parts = refined_parts
     residuals: List[str] = []
     seen = set()
     stop = {

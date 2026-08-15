@@ -53,6 +53,20 @@ def test_inject_document_auto_segments_and_locks() -> None:
     assert out["locked"] >= 1
 
 
+def test_auto_segment_sentence_fallback_for_plain_text() -> None:
+    text = (
+        "Plain ingestion text should still split into sensible residual chunks even without structural markers. "
+        "The fallback should group nearby sentences together so each chunk stays readable and useful for retrieval. "
+        "This sample intentionally avoids headers and blank lines while keeping enough content to trigger the sentence-based path. "
+        "Each sentence contributes more detail about segmentation quality, retrieval stability, and downstream locking behavior. "
+        "The resulting residuals should no longer collapse into one oversized wall of text during ingestion."
+    )
+    segments = auto_segment(text, min_len=40)
+    assert len(segments) >= 2
+    bodies = [segment.split("::", 2)[2] for segment in segments]
+    assert all(40 <= len(body) <= 400 for body in bodies)
+
+
 def test_persistent_void_fail_closed_on_broken_chain(tmp_path) -> None:
     store = tmp_path / "chain.jsonl"
     store.write_text('{"text":"ok record","domain":"general","protect":true}\n{bad-json}\n', encoding="utf-8")
