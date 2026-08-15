@@ -12,6 +12,7 @@ src/residual_void/merged.py
 src/residual_void/mind.py
 src/residual_void/network.py
 src/residual_void/persistence.py
+src/residual_void/server.py
 src/residual_void.egg-info/PKG-INFO
 src/residual_void.egg-info/SOURCES.txt
 src/residual_void.egg-info/dependency_links.txt
@@ -22,6 +23,7 @@ tests/test_binary_path.py
 tests/test_config_loader.py
 tests/test_core.py
 tests/test_core_nulling.py
+tests/test_discovery_server.py
 tests/test_geometry.py
 tests/test_god_zone.py
 tests/test_hyperdrive_module.py

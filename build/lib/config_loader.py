@@ -2,6 +2,7 @@
 config_loader.py — Residual-Void configuration loader and validator.
 
 Usage:
+    cp config/residualvoid.example.yaml config/residualvoid.yaml
     python src/config_loader.py --validate config/residualvoid.yaml
 
 Environment variables:

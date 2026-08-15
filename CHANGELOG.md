@@ -75,6 +75,11 @@ All notable changes to Residual-Void will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+- Built-in ResidualVoid HTTP service entrypoint exposed through `residual-void --serve`.
+- Zero-config discovery via mDNS advertisement plus `/.well-known/residualvoid.json` and `/discover`.
+- Discovery/server helpers exported on the default package path with regression coverage in `tests/test_discovery_server.py`.
+
 ### Planned
 - extended persistence validation coverage
 - runtime security and deployment hardening beyond the current release candidate baseline

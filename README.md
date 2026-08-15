@@ -1,6 +1,7 @@
 # ResidualVoid v2.2 — Unified Production Runtime
 
-ResidualVoid v2.2 ships the **unified production build** as its default runtime, combining
+ResidualVoid v2.2 ships the **unified production build** as its default runtime, now with
+built-in HTTP serving and zero-config discovery, combining
 hierarchical edge-nulling Pi-Helix extraction, nested geometric shells, Fibonacci placement,
 hierarchical message-passing (Laplacian/Fiedler), fast/medium/deep imprint layers,
 ghost tax / ethical tilt / god-zone regulation, binary residual path, and unlimited
@@ -25,6 +26,7 @@ private mergers through `ResidualNetworkManager`.
 - ✅ Snapshot/restore + drift audit APIs
 - ✅ Document ingestion helpers (`auto_segment`, `inject_document`, `ResidualVoid.inject`)
 - ✅ Transparent network guest projection (`guest_project`)
+- ✅ Built-in HTTP service with `--serve` plus mDNS / well-known discovery helpers
 
 ---
 
@@ -94,8 +96,39 @@ residual-void --demo
 # Multi-network smoke demo
 residual-void --network-demo
 
+# Serve ResidualVoid over HTTP with mDNS discovery enabled
+residual-void --serve --host 0.0.0.0 --port 7700 --service-name ResidualVoid
+
 # Show version
 residual-void --version
+```
+
+---
+
+## HTTP service + discovery
+
+Run the bundled service:
+
+```bash
+residual-void --serve --port 7700
+```
+
+Available endpoints:
+
+- `GET /status`
+- `GET /discover`
+- `GET /.well-known/residualvoid.json`
+- `POST /lock`
+- `POST /project`
+- `POST /inject`
+
+Python discovery helper:
+
+```python
+from residual_void import discover_and_connect
+
+info = discover_and_connect()
+print(info["base_url"])
 ```
 
 ---
@@ -118,6 +151,7 @@ residual-void --version
 from residual_void import (
     ResidualVoid,
     ResidualNetworkManager,
+    PersistentVoid,
     SecureNode,
     CoherentField,
     CoherentVoid,
@@ -129,6 +163,12 @@ Optional geometry / mind layers are also importable:
 
 ```python
 from residual_void import ResidualGeometry, ResidualFieldMind
+```
+
+Service helpers are also available:
+
+```python
+from residual_void import create_http_server, serve_residual_void, discover_and_connect
 ```
 
 ---
