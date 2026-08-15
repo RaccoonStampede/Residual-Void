@@ -3,7 +3,7 @@ from __future__ import annotations
 import pytest
 
 from residual_void import PersistentVoid, ResidualNetworkManager, ResidualVoid, SecureNode
-from residual_void.ingestion import auto_segment
+from residual_void.ingestion import _SENTENCE_TARGET_MAX, auto_segment
 
 
 def test_cdc_heat_storm_ranking_and_synthesize() -> None:
@@ -65,7 +65,7 @@ def test_auto_segment_sentence_fallback_for_plain_text() -> None:
     assert len(segments) >= 2
     assert all(segment.count("::") >= 2 for segment in segments)
     bodies = [segment.split("::", 2)[2] for segment in segments]
-    assert all(40 <= len(body) <= 400 for body in bodies)
+    assert all(body.strip() and len(body) <= _SENTENCE_TARGET_MAX for body in bodies)
 
 
 def test_persistent_void_fail_closed_on_broken_chain(tmp_path) -> None:

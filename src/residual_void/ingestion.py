@@ -38,9 +38,12 @@ def _split_long_text(text: str, limit: int) -> List[str]:
 
 
 def _sentence_chunks(text: str) -> List[str]:
-    sentences = [s.strip() for s in _SENTENCE_SPLIT_RE.split(text.strip()) if s.strip()]
+    stripped = text.strip()
+    if not stripped:
+        return []
+    sentences = [s.strip() for s in _SENTENCE_SPLIT_RE.split(stripped) if s.strip()]
     if len(sentences) <= 1:
-        return _split_long_text(text.strip(), _SENTENCE_TARGET_MAX) or [text.strip()]
+        return _split_long_text(stripped, _SENTENCE_TARGET_MAX) or [stripped]
     chunks: List[str] = []
     current = ""
     for sentence in sentences:
@@ -77,7 +80,7 @@ def auto_segment(text: str, domain: str = "DOC", min_len: int = 50) -> List[str]
     if needs_refinement or any(len(part) > _SENTENCE_TARGET_MAX for part in normalized_parts):
         refined_parts: List[str] = []
         for part in normalized_parts:
-            if len(part) > _SENTENCE_TARGET_MAX or needs_refinement:
+            if len(part) > _SENTENCE_TARGET_MAX or (needs_refinement and len(part) > min_len):
                 refined_parts.extend(_sentence_chunks(part))
             else:
                 refined_parts.append(part)
