@@ -1,6 +1,6 @@
-# ResidualVoid v2.2 — Unified Production Runtime
+# ResidualVoid v2.3 — Unified Production Runtime
 
-ResidualVoid v2.2 ships the **unified production build** as its default runtime, now with
+ResidualVoid v2.3 ships the **unified production build** as its default runtime, now with
 built-in HTTP serving and zero-config discovery, combining
 hierarchical edge-nulling Pi-Helix extraction, nested geometric shells, Fibonacci placement,
 hierarchical message-passing (Laplacian/Fiedler), fast/medium/deep imprint layers,
@@ -9,7 +9,7 @@ private mergers through `ResidualNetworkManager`.
 
 ---
 
-## What's new in v2.2
+## What's new in v2.3
 
 - ✅ **Unified production build** is now the default (previously opt-in)
 - ✅ **Hierarchical edge-nulling Pi-Helix** extractor active on default path
@@ -22,6 +22,12 @@ private mergers through `ResidualNetworkManager`.
 - ✅ Geometry (`ResidualGeometry`) and mind (`ResidualFieldMind`) layers available on default path
 - ✅ All v2.0 security guarantees preserved (HMAC signatures, hash chain, replay protection)
 - ✅ Master-parity synthesize ranking (intent + fuzzy + resonance + value bias)
+- ✅ HyperSeed Source/Shadow retrieval contract with grounded Synthesize output
+- ✅ Complete Synthesize Intent Cells for WHY, WHEN, HOW, WHO, WHAT, definition,
+  mechanism, diagnosis, and general questions
+- ✅ Sentence-safe extractive answers: one primary Shadow plus up to two compatible
+  supporting Shadows, without invented connective prose or mid-sentence truncation
+- ✅ Optional Pure-Harness dynamics and a bounded, opt-in phase tie-breaker
 - ✅ Persistent append-only JSONL runtime via `PersistentVoid`
 - ✅ Snapshot/restore + drift audit APIs
 - ✅ Document ingestion helpers (`auto_segment`, `inject_document`, `ResidualVoid.inject`)
@@ -61,6 +67,85 @@ print(node.project("authorized command", mode="synthesize"))
 print(void.verify_integrity())
 print(void.status())
 ```
+
+---
+
+## Retrieval contract: Sources and Shadows
+
+Public locks create an immutable, complete **Source** plus one or more grounded **Shadows**:
+
+- `mode="exact"` retrieves Source evidence only.
+- `mode="synthesize"` retrieves eligible Shadows only, after target, frame, seed, grounding,
+  and carrier checks.
+- Shadows must remain extractive from their Source; a Source is never changed by governance
+  or ranking updates.
+- Direct low-level `CoherentField.store()` use remains supported as a legacy path, but public
+  locks should use the Source/Shadow model.
+
+This separation prevents a ranking or dynamics signal from turning partial or unrelated text
+into evidence. If no grounded candidate survives the relevant gates, the runtime refuses rather
+than guessing.
+
+---
+
+## Synthesize Intent Cells
+
+Single-answer Synthesize queries are returned as complete, grounded **Intent Cells**:
+
+- **Primary branches:** WHY, WHEN, HOW, WHO, WHAT, definition, mechanism, diagnosis,
+  and general factual queries.
+- **Evidence order:** relevance, target identity, grounding, seed scope, frame, carrier
+  alignment, and primary-answer admission are evaluated before intent lineage and topic-family
+  preference.
+- **Assembly:** the primary answer is the complete locked Shadow body. When compatible
+  evidence exists, up to two same-topic or same-Source supporting Shadow bodies may be included.
+- **Extractive guarantee:** bodies are cleaned from their stored envelopes but are never
+  paraphrased, shortened mid-sentence, or joined with generated labels such as `Related:`.
+
+Exact retrieval remains Source-only and unassembled. LIST, STEPS, COMPARE, RELATE, and
+SUMMARIZE queries retain their existing multi-item behavior. Unsupported or off-target queries
+still refuse instead of falling back to weak token overlap.
+
+---
+
+## Pure-Harness dynamics and optional phase signal
+
+The Pure-Harness evaluator exposes a deterministic residual response:
+
+```text
+R0 / (1 + gamma) + beta * sin(gamma * n + phase)
+```
+
+It includes named linear-response and modular-window controls, plus optional deterministic
+multi-pair flow diagnostics. These controls are **off by default** and do not validate external
+experimental claims.
+
+Synthesize already uses its own carrier alignment mechanism. A Pure-Harness signal can be enabled
+only as a small, post-gate tie-breaker for candidates that are already eligible:
+
+```python
+from residual_void import ResidualVoid
+
+void = ResidualVoid()
+void.configure_pure_harness(
+    enabled=True,
+    synthesize_phase_signal_enabled=True,
+    synthesize_phase_signal_max_bonus=0.06,  # valid range: (0, 0.06]
+    synthesize_phase_signal_tie_window=0.06,  # only close admitted scores
+)
+
+print(void.status()["void"]["pure_harness"])
+```
+
+Raw phase offsets are centered only across close candidates that already meet the unmodified
+primary-answer cutoff and capped at `±0.06`; an admission floor prevents a negative offset from
+creating a new refusal. The signal cannot introduce a candidate, turn a baseline refusal into an
+answer, bypass grounding/target/frame/seed checks, change Exact retrieval, or replace the normal
+carrier signal. Keep it disabled unless a labeled corpus demonstrates a useful improvement for
+your workload.
+
+See [configuration.md](docs/configuration.md#pure-harness-runtime-controls) and
+[architecture.md](docs/architecture.md#retrieval-and-optional-dynamics) for details.
 
 ---
 
@@ -156,6 +241,9 @@ from residual_void import (
     CoherentField,
     CoherentVoid,
     Residual,
+    PureHarnessConfig,
+    PureHarnessDynamics,
+    ResidualFlowResult,
 )
 ```
 
@@ -181,6 +269,11 @@ Run the full test suite:
 pytest -q
 ```
 
+The suite includes Source/Shadow persistence and retrieval coverage, complete Intent Cell
+coverage, Pure-Harness scalar and multi-pair dynamics coverage, a labeled
+baseline-versus-enabled Synthesize benchmark, and Exact-boundary regression checks.
+The v2.3 build completed with 189 passing tests in the full local suite.
+
 Minimal smoke snippet:
 
 ```python
@@ -198,7 +291,8 @@ print(void.verify_integrity())
 
 ## Version
 
-`v2.2.0` — Unified Production Runtime parity update (ranking + persistence + ingestion)
+`v2.3.0` — Complete grounded Synthesize Intent Cells with unchanged Exact and multi-item
+retrieval boundaries
 
 ---
 
