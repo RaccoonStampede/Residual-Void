@@ -1,4 +1,9 @@
 # Residual-Void Repository Audit Report
+
+> **Historical snapshot:** This report preserves the repository state observed on
+> 2026-08-13. It is not the current build status; use [README.md](README.md),
+> [RELEASE.md](RELEASE.md), and [CHANGELOG.md](CHANGELOG.md) for v2.3.0.
+
 **Date:** 2026-08-13  
 **Status:** Operational with Critical Issues Requiring Attention
 
