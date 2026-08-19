@@ -1,5 +1,8 @@
 # ResidualVoid v1.0.1 – Complete Production Build
 
+> **Historical release notes:** These notes describe v1.0.1. For the current v2.3.0 build,
+> see [README.md](README.md), [RELEASE.md](RELEASE.md), and [CHANGELOG.md](CHANGELOG.md).
+
 ## Overview
 **Complete, fully-verified production implementation** of ResidualVoid with restored Hierarchical Edge-Nulling organ, nested shells, imprint layers, and god-zone regulation. The merged release coverage highlights 24 comprehensive tests across 8 focused files.
 
