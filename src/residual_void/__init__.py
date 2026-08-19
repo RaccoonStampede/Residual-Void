@@ -1,4 +1,4 @@
-"""ResidualVoid – Unified Production Runtime v2.2
+"""ResidualVoid – Unified Production Runtime v2.3
 
 Default runtime: hierarchical edge-nulling Pi-Helix, nested geometric shells,
 Fibonacci placement, hierarchical message-passing (Laplacian/Fiedler),
@@ -12,6 +12,7 @@ Public API: ResidualVoid, ResidualNetworkManager, SecureNode,
 from .core import (
     CoherentField,
     CoherentVoid,
+    HyperSeed,
     Residual,
     SecureNode,
     hierarchical_edge_extract_v2,
@@ -22,6 +23,15 @@ from .merged import ResidualVoid
 from .network import ResidualNetworkManager
 from .ingestion import auto_segment, inject_document
 from .persistence import PersistentVoid
+from .dynamics import (
+    LINEAR_RESPONSE_COEFFICIENT,
+    MODULAR_LYAPUNOV_EXPONENT,
+    MODULAR_WINDOW_HIGH,
+    MODULAR_WINDOW_LOW,
+    PureHarnessConfig,
+    PureHarnessDynamics,
+    ResidualFlowResult,
+)
 from .server import (
     connect_to_residualvoid,
     create_http_server,
@@ -30,7 +40,7 @@ from .server import (
     start_mdns_advertisement,
 )
 
-__version__ = "2.2.0"
+__version__ = "2.3.0"
 __all__ = [
     # Unified production API
     "ResidualVoid",
@@ -39,6 +49,7 @@ __all__ = [
     "SecureNode",
     "CoherentField",
     "CoherentVoid",
+    "HyperSeed",
     "Residual",
     # Pi-Helix DSP
     "hierarchical_edge_extract_v2",
@@ -51,6 +62,13 @@ __all__ = [
     "start_mdns_advertisement",
     "discover_and_connect",
     "connect_to_residualvoid",
+    "LINEAR_RESPONSE_COEFFICIENT",
+    "MODULAR_LYAPUNOV_EXPONENT",
+    "MODULAR_WINDOW_LOW",
+    "MODULAR_WINDOW_HIGH",
+    "PureHarnessConfig",
+    "PureHarnessDynamics",
+    "ResidualFlowResult",
 ]
 
 
