@@ -1,5 +1,9 @@
 # ADR 0001 — Production Baseline
 
+> **Historical baseline decision:** This ADR records the initial production baseline.
+> Current runtime behavior, including v2.3 Synthesize Intent Cells, is documented in
+> [architecture.md](../architecture.md) and [RELEASE.md](../../RELEASE.md).
+
 | Field | Value |
 |---|---|
 | **ID** | 0001 |

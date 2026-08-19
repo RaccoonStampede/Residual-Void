@@ -19,4 +19,11 @@ smoke:
 	residual-void --version
 	residual-void --demo
 
-release-check: install test build smoke
+smoke-live:
+	$(PYTHON) smoke_test.py
+
+smoke-live-url:
+	@test -n "$(URL)" || (echo "Usage: make smoke-live-url URL=https://your-deployed-host" && exit 1)
+	$(PYTHON) smoke_test.py --url "$(URL)"
+
+release-check: install test build smoke smoke-live

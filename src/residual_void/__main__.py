@@ -31,6 +31,11 @@ def main(argv: Optional[list[str]] = None) -> int:
         default="ResidualVoid",
         help="mDNS service instance name for --serve",
     )
+    parser.add_argument(
+        "--snapshot",
+        default="void_snapshot.json",
+        help="Path to the persistent snapshot file (loaded on boot, saved via POST /snapshot)",
+    )
     args = parser.parse_args(argv)
 
     if args.network_demo:
@@ -49,11 +54,24 @@ def main(argv: Optional[list[str]] = None) -> int:
     runtime = ResidualVoid(config_path=args.config)
 
     if args.serve:
+        import os
+        snapshot_path = args.snapshot
+        if os.path.exists(snapshot_path):
+            try:
+                runtime.load_snapshot_file(snapshot_path)
+                snap_status = runtime.status()
+                print(
+                    f"[ResidualVoid] Restored snapshot from '{snapshot_path}' "
+                    f"({snap_status['void'].get('residual_count', '?')} residuals)"
+                )
+            except Exception as exc:
+                print(f"[ResidualVoid] WARNING: failed to restore snapshot '{snapshot_path}': {exc}")
         serve_residual_void(
             host=args.host,
             port=args.port,
             runtime=runtime,
             service_name=args.service_name,
+            snapshot_path=snapshot_path,
         )
         return 0
 

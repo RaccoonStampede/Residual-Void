@@ -46,6 +46,77 @@ fieldmind: { ... }
 
 ---
 
+## Synthesize Intent Cell Behavior
+
+Intent Cells do not add a configuration surface. They are the default single-answer
+Synthesize assembly contract:
+
+| Query family | Primary branch | Compatible support examples |
+|---|---|---|
+| `why` / causal WHAT | `why` | `mechanism` |
+| `when` / timing | `when` | `condition` |
+| `how` / process | `how` | `mechanism` |
+| `who` / entity | `who` | `what`, `fact` |
+| `what is` / `define` | `definition` | `what` |
+| failure or troubleshooting | `diagnose` | `why`, `mechanism`, `condition` |
+| explicit mechanism | `mechanism` | `how`, `process` |
+| conditional `what happens` | `what` | `condition`, `effect` |
+| other `what` questions | `what` | `mechanism` |
+| non-interrogative fallback | `general` | none |
+
+All normal relevance, target, grounding, seed, frame, carrier, and primary-admission
+gates run before lineage/topic preference. The output contains the complete locked Shadow
+body and may include no more than two compatible supporting bodies. No truncation,
+paraphrase, or generated connective label is used.
+
+This behavior does not affect Exact retrieval, which remains Source-only and unassembled,
+or the existing multi-item Synthesize paths.
+
+---
+
+## Pure-Harness Runtime Controls
+
+Pure-Harness controls are configured programmatically on a running `ResidualVoid`; they are not
+loaded from the YAML/environment configuration surface above.
+
+```python
+from residual_void import ResidualVoid
+
+runtime = ResidualVoid()
+runtime.configure_pure_harness(
+    enabled=True,
+    synthesize_phase_signal_enabled=True,
+    synthesize_phase_signal_max_bonus=0.06,
+    synthesize_phase_signal_tie_window=0.06,
+)
+```
+
+| Option | Default | Valid values | Purpose |
+|---|---:|---|---|
+| `enabled` | `False` | Boolean | Enables Pure-Harness evaluation and multi-pair diagnostics. |
+| `synthesize_phase_signal_enabled` | `False` | Boolean | Allows the optional Synthesize phase tie-breaker; requires `enabled=True`. |
+| `synthesize_phase_signal_max_bonus` | `0.06` | finite number in `(0, 0.06]` | Absolute cap for each raw, centered Synthesize phase offset. |
+| `synthesize_phase_signal_tie_window` | `0.06` | finite number in `(0, 0.25]` | Maximum baseline score gap for invoking the phase tie-breaker. |
+| `default_ghost_tax_floor` | `0.05` | finite number | Soft floor used by multi-pair flow diagnostics. |
+| `max_oscillation_amplitude` | `0.01` | finite positive number | Maximum permitted sinusoidal correction amplitude. |
+
+The status surface exposes the effective configuration:
+
+```python
+status = runtime.status()["void"]["pure_harness"]
+assert status["coupled_to_retrieval"] is False  # default
+```
+
+`coupled_to_retrieval` becomes true only when both enablement flags are true. The phase signal
+runs only when at least two candidates remain within the configured tie window, after the normal
+target, seed, grounding, frame, carrier, and unmodified primary-admission gates. It cannot
+introduce an ineligible candidate, turn a baseline refusal into an answer, or affect Exact retrieval.
+
+Runtime tuning is held in process memory. Reapply these settings after a restart if you choose to
+use them; no persistence behavior is implied by this API.
+
+---
+
 ### `security`
 
 | Key | Env var override | Required in prod | Default | Description |

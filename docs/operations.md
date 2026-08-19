@@ -98,6 +98,66 @@ Each component exposes:
 
 ---
 
+## Synthesize Intent Cell Validation
+
+Use this checklist when validating a new corpus or investigating an incomplete answer:
+
+1. Confirm the candidate is a grounded Shadow linked to the expected Source.
+2. Check that the query target and answer frame match before reviewing lineage or
+   topic-family preference.
+3. Confirm the returned primary body ends at the stored sentence boundary. The runtime
+   does not intentionally shorten a suitable Shadow.
+4. If supporting text is present, verify it is from the same topic or Source, belongs to
+   an allowed adjacent branch, and is limited to two supporting bodies.
+5. For unsupported or off-target queries, confirm the result is a refusal rather than a
+   weak-overlap answer.
+6. For Exact checks, use a verbatim-source query and confirm the returned payload is the
+   complete Source, not a cleaned Shadow or assembled cell.
+
+The Intent Cell path has no runtime flags. Do not enable Pure-Harness as a workaround for
+missing, truncated, or off-target evidence; Pure-Harness remains a separate, explicit,
+close-tie-only Synthesize signal.
+
+---
+
+## Pure-Harness Phase-Signal Runbook
+
+The Pure-Harness evaluator is disabled by default. Before enabling its Synthesize tie-breaker:
+
+1. Establish a labeled evaluation set for the target corpus.
+2. Run baseline Synthesize results against that set.
+3. Enable the signal in a staging process only.
+4. Compare answer correctness, refusal behavior, and off-target results.
+5. Keep the feature disabled if it does not show a measurable benefit.
+
+Enable it only with both runtime flags:
+
+```python
+runtime.configure_pure_harness(
+    enabled=True,
+    synthesize_phase_signal_enabled=True,
+    synthesize_phase_signal_max_bonus=0.06,
+)
+```
+
+Inspect the effective state through `GET /status` or `runtime.status()`:
+
+| Status key | Healthy/default value | Meaning |
+|---|---|---|
+| `enabled` | `false` | Pure-Harness diagnostics are disabled. |
+| `synthesize_phase_signal_enabled` | `false` | No Pure-Harness score adjustment is requested. |
+| `coupled_to_retrieval` | `false` | The optional signal cannot affect Synthesize ranking. |
+| `synthesize_phase_signal_max_bonus` | `0.06` | Maximum absolute adjustment when enabled. |
+| `synthesize_phase_signal_tie_window` | `0.06` | Maximum admitted-score gap that invokes the signal. |
+
+The signal is a bounded close-tie, post-admission tie-breaker, not an admission control or relevance
+mechanism. It cannot turn a baseline refusal into an answer. If it causes unexpected answer
+changes, disable `synthesize_phase_signal_enabled` immediately and compare the affected queries
+with the baseline corpus. The configuration is process-local and must be reapplied after a restart
+if it is intentionally enabled.
+
+---
+
 ## Runbook
 
 ### Component Won't Start

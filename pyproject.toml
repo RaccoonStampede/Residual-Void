@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "residual-void"
-version = "2.2.0"
+version = "2.3.0"
 description = "Residual-Void coherence engine — unified production runtime with edge-nulling Pi-Helix, nested geometric shells, networked residual management, and god-zone regulation"
 readme = "README.md"
 license = "MIT"

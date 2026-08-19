@@ -1,5 +1,9 @@
 # Residual-Void v1.0.1 – Completeness Verification ✅
 
+> **Historical verification record:** This document records the v1.0.1 state on
+> 2026-08-13. It is retained for provenance; see [README.md](README.md),
+> [RELEASE.md](RELEASE.md), and [CHANGELOG.md](CHANGELOG.md) for the current v2.3.0 build.
+
 **Verification Date:** 2026-08-13 03:45 UTC  
 **Verification Status:** ALL CRITICAL ITEMS COMPLETE
 
