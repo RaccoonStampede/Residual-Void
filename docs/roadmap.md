@@ -6,9 +6,25 @@
 
 ## Current State (Baseline)
 
-The repository contains the foundational documentation and configuration scaffolding.
-No production runtime code has been deployed.  The config loader is implemented with
-non-breaking defaults.
+The repository includes a working runtime with Source/Shadow retrieval, JSONL persistence,
+HTTP status and projection endpoints, and a validated Pure-Harness diagnostic layer. The optional
+Pure-Harness Synthesize phase signal is disabled by default because it is a bounded tie-breaker,
+not a replacement for grounded retrieval. Complete Synthesize Intent Cells are now shipped:
+single-answer queries return complete grounded Shadow bodies while Exact and multi-item
+retrieval boundaries remain unchanged.
+
+---
+
+## Completed v2.3 Build
+
+- Structured Intent Cell classification for WHY, WHEN, HOW, WHO, WHAT, definition,
+  mechanism, diagnosis, and general factual queries.
+- Sentence-safe extractive assembly with one primary Shadow and up to two compatible
+  supporting Shadows.
+- Intent lineage/topic preference applied only after target, grounding, seed, frame,
+  carrier, and primary-admission gates.
+- Exact Source-only isolation, multi-item Synthesize compatibility, refusal safeguards,
+  Pure-Harness opt-in isolation, and regression coverage.
 
 ---
 
@@ -62,6 +78,7 @@ non-breaking defaults.
 | Implement `/healthz` and `/readyz` endpoints | Engineering | P2 | Required for orchestrator health checks |
 | Set up centralized log aggregation | DevOps | P2 | |
 | Create alerting rules from [operations.md#monitoring](operations.md#monitoring) | DevOps | P2 | |
+| Evaluate the optional Pure-Harness phase signal on a representative labeled corpus | Engineering | P2 | Enable only if it improves answer quality without weakening refusal behavior |
 
 ### Phase 5 — Cluster Hardening (Medium-term)
 
