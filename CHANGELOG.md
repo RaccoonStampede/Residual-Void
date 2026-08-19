@@ -2,6 +2,28 @@
 
 All notable changes to Residual-Void will be documented in this file.
 
+## [Unreleased] — v2.3.0 build
+
+### Added
+- Structured Synthesize Intent Cells for WHY, WHEN, HOW, WHO, WHAT, definition,
+  mechanism, diagnosis, and general factual queries.
+- Sentence-safe extractive assembly with a complete primary Shadow and up to two compatible
+  supporting Shadows.
+- Regression coverage for complete Ghost Tax WHY/HOW, WHEN, definition, WHO, diagnosis,
+  refusal, Exact isolation, and bounded support behavior.
+
+### Changed
+- Synthesize no longer shortens an admitted primary body to a fixed character limit.
+- Intent lineage and topic-family preference are applied only after normal target, grounding,
+  seed, frame, carrier, and primary-admission gates.
+- Supporting evidence is restricted to same-topic or same-Source compatible branches and
+  contains no generated `Related:` or pipe labels.
+
+### Preserved
+- Exact remains Source-only and unassembled.
+- LIST, STEPS, COMPARE, RELATE, and SUMMARIZE retain their multi-item behavior.
+- Pure-Harness remains default-off and limited to explicit close-tie resolution.
+
 ## [2.2.0] - 2026-08-14
 
 ### Added
@@ -79,6 +101,18 @@ All notable changes to Residual-Void will be documented in this file.
 - Built-in ResidualVoid HTTP service entrypoint exposed through `residual-void --serve`.
 - Zero-config discovery via mDNS advertisement plus `/.well-known/residualvoid.json` and `/discover`.
 - Discovery/server helpers exported on the default package path with regression coverage in `tests/test_discovery_server.py`.
+- HyperSeed Source/Shadow retrieval: public locks create immutable complete Sources and grounded,
+  extractive Shadows; Exact uses Sources while Synthesize uses eligible Shadows.
+- Pure-Harness scalar and multi-pair dynamics with validated named constants, deterministic
+  diagnostics, and JSON-safe status output.
+- Optional default-off Synthesize phase tie-breaker that invokes raw centered offsets only for
+  close admitted candidates, with a configurable tie window, primary-admission floor, and `±0.06` cap.
+- Labeled Synthesize benchmark and regression coverage for retrieval isolation, phase-signal
+  bounds, live eligible ties, same-topic grounding, and refusal behavior.
+
+### Changed
+- Documented the Source/Shadow retrieval contract, Pure-Harness runtime controls, operational
+  rollout guidance, and verification coverage across README and `docs/`.
 
 ### Planned
 - extended persistence validation coverage
