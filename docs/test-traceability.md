@@ -72,16 +72,42 @@ This document maps production-readiness requirements to test coverage.
 
 ---
 
+### REQ-RETRIEVAL-01: Source/Shadow retrieval boundaries
+
+| Test ID | Description | Location | Status |
+|---|---|---|---|
+| `test_hyperseed_source_shadow.py` | Public locks create grounded Source/Shadow pairs; Exact remains Source-only and Synthesize remains Shadow-only | `tests/test_hyperseed_source_shadow.py` | Covered |
+| `test_hyperseed_source_shadow.py` | Source/Shadow metadata survives persistence, HTTP, restore, and rollback paths | `tests/test_hyperseed_source_shadow.py` | Covered |
+
+### REQ-RETRIEVAL-02: Complete Synthesize Intent Cells
+
+| Test ID | Description | Location | Status |
+|---|---|---|---|
+| `test_synthesize_intent_cells.py` | Classifies WHY, WHEN, HOW, WHO, WHAT, definition, mechanism, diagnosis, and general questions into compatible branches | `tests/test_synthesize_intent_cells.py` | Covered |
+| `test_synthesize_intent_cells.py` | Returns complete grounded Shadow bodies for WHY, WHEN, HOW, WHO, WHAT, definition, and diagnosis queries | `tests/test_synthesize_intent_cells.py` | Covered |
+| `test_synthesize_intent_cells.py` | Limits a cell to one primary plus at most two compatible supports without generated labels or truncation | `tests/test_synthesize_intent_cells.py` | Covered |
+| `test_synthesize_intent_cells.py` | Preserves refusal behavior and proves Exact does not enter Synthesize-only Intent Cell helpers | `tests/test_synthesize_intent_cells.py` | Covered |
+
+### REQ-DYN-01: Pure-Harness isolation and bounded phase signal
+
+| Test ID | Description | Location | Status |
+|---|---|---|---|
+| `test_pure_harness_dynamics.py` | Validates scalar response, modular boundaries, deterministic flow, validation, and default retrieval neutrality | `tests/test_pure_harness_dynamics.py` | Covered |
+| `test_pure_harness_dynamics.py::test_phase_signal_is_explicit_and_bounded_after_carrier_alignment` | Confirms explicit enablement and the `±0.06` adjustment cap | `tests/test_pure_harness_dynamics.py` | Covered |
+| `test_pure_harness_dynamics.py::test_phase_signal_changes_live_eligible_tie_without_bypassing_gates` | Confirms the enabled post-gate signal affects an eligible tie but cannot answer an unrelated query | `tests/test_pure_harness_dynamics.py` | Covered |
+| `test_pure_harness_synthesize_benchmark.py` | Compares baseline and enabled Synthesize results on labeled core, refusal, and same-topic cases | `tests/test_pure_harness_synthesize_benchmark.py` | Covered |
+
+---
+
 ## Coverage Gaps Summary
 
 | Area | Gap | Priority |
 |---|---|---|
-| All | No tests exist yet | High |
 | Security | Replay protection tests | High |
 | Security | Key rotation tests | High |
 | Config | Placeholder rejection | High |
 | Persistence | WAL + snapshot tests | Medium |
-| Components | Integration tests | Medium |
+| Platform config/cluster docs | Some requirements are documented ahead of implementation | Medium |
 
 ---
 
